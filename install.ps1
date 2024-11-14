@@ -17,6 +17,7 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 # Configuration
 $CONFIG = @{
+    RepoUrl = "https://raw.githubusercontent.com/mpgamer75/ps-installation/main"
     LocalPath = "$env:USERPROFILE\.ps-tools"
     PackagesPath = "$env:USERPROFILE\.ps-tools\packages"
     LogPath = "$env:USERPROFILE\.ps-tools\logs"
@@ -59,6 +60,34 @@ function Test-Prerequisites {
     }
     
     return $true
+}
+
+# Télécharge les fichiers des paquets
+function Get-PackageFiles {
+    Write-Host "Téléchargement des paquets..." -ForegroundColor Cyan
+    $baseUrl = $CONFIG.RepoUrl + "/packages"
+    
+    @("monitor", "clean", "ping-mon", "remind") | ForEach-Object {
+        $packageName = $_
+        $packagePath = Join-Path $CONFIG.PackagesPath $packageName
+        
+        Write-Host "Téléchargement de $packageName..." -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path $packagePath -Force | Out-Null
+        
+        try {
+            $installUrl = "$baseUrl/$packageName/install.ps1"
+            $manifestUrl = "$baseUrl/$packageName/manifest.json"
+            
+            Invoke-WebRequest -Uri $installUrl -OutFile (Join-Path $packagePath "install.ps1")
+            Invoke-WebRequest -Uri $manifestUrl -OutFile (Join-Path $packagePath "manifest.json")
+            
+            Write-Host "✓ $packageName téléchargé" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "✗ Erreur lors du téléchargement de $packageName" -ForegroundColor Red
+            Write-Log $_.Exception.Message -Level ERROR
+        }
+    }
 }
 
 # Liste les paquets disponibles
@@ -113,51 +142,14 @@ function Install-Package {
     Write-Host "`n=== INSTALLATION: $PackageName ===" -ForegroundColor Cyan
     
     try {
-        # Installation selon le type de paquet
-        switch ($PackageName) {
-            "monitor" {
-                Write-Log "Installation du paquet monitor..." -Level INFO
-                $scriptPath = Join-Path $CONFIG.PackagesPath "monitor\install.ps1"
-                if (Test-Path $scriptPath) {
-                    & $scriptPath
-                } else {
-                    Write-Log "Script d'installation introuvable pour monitor" -Level ERROR
-                }
-            }
-            "clean" {
-                Write-Log "Installation du paquet clean..." -Level INFO
-                $scriptPath = Join-Path $CONFIG.PackagesPath "clean\install.ps1"
-                if (Test-Path $scriptPath) {
-                    & $scriptPath
-                } else {
-                    Write-Log "Script d'installation introuvable pour clean" -Level ERROR
-                }
-            }
-            "ping-mon" {
-                Write-Log "Installation du paquet ping-mon..." -Level INFO
-                $scriptPath = Join-Path $CONFIG.PackagesPath "ping-mon\install.ps1"
-                if (Test-Path $scriptPath) {
-                    & $scriptPath
-                } else {
-                    Write-Log "Script d'installation introuvable pour ping-mon" -Level ERROR
-                }
-            }
-            "remind" {
-                Write-Log "Installation du paquet remind..." -Level INFO
-                $scriptPath = Join-Path $CONFIG.PackagesPath "remind\install.ps1"
-                if (Test-Path $scriptPath) {
-                    & $scriptPath
-                } else {
-                    Write-Log "Script d'installation introuvable pour remind" -Level ERROR
-                }
-            }
-            default {
-                Write-Log "Paquet '$PackageName' non reconnu" -Level ERROR
-                return
-            }
+        $scriptPath = Join-Path $CONFIG.PackagesPath "$PackageName\install.ps1"
+        if (Test-Path $scriptPath) {
+            & $scriptPath
+            Write-Host "`nInstallation terminée!" -ForegroundColor Green
+        } else {
+            Write-Log "Script introuvable: $scriptPath" -Level ERROR
+            Write-Host "`nTéléchargement du paquet nécessaire. Veuillez sélectionner l'option 1 du menu principal." -ForegroundColor Yellow
         }
-        
-        Write-Host "`nInstallation terminée!" -ForegroundColor Green
     }
     catch {
         Write-Log "Erreur lors de l'installation: $_" -Level ERROR
@@ -169,30 +161,29 @@ function Show-MainMenu {
     while ($true) {
         Clear-Host
         Write-Host "=== PS-TOOLS MANAGER ===" -ForegroundColor Cyan
-        Write-Host "1. Lister les paquets disponibles"
-        Write-Host "2. Installer un paquet"
-        Write-Host "3. Vérifier les mises à jour"
+        Write-Host "1. Télécharger/Mettre à jour les paquets"
+        Write-Host "2. Voir les paquets disponibles"
+        Write-Host "3. Installer un paquet"
         Write-Host "Q. Quitter"
         
         $choice = Read-Host "`nVotre choix"
         
         switch ($choice) {
             "1" { 
-                Get-AvailablePackages 
+                Download-PackageFiles 
                 Write-Host "`nAppuyez sur une touche pour continuer..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
             "2" {
                 Get-AvailablePackages
-                Write-Host "`nQuel paquet souhaitez-vous installer ?"
-                $package = Read-Host "Nom du paquet"
-                Install-Package $package
                 Write-Host "`nAppuyez sur une touche pour continuer..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
             "3" {
-                Write-Host "`nRecherche de mises à jour..." -ForegroundColor Yellow
-                Write-Host "Aucune mise à jour disponible." -ForegroundColor Green
+                Get-AvailablePackages
+                Write-Host "`nQuel paquet souhaitez-vous installer ?"
+                $package = Read-Host "Nom du paquet"
+                Install-Package $package
                 Write-Host "`nAppuyez sur une touche pour continuer..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
