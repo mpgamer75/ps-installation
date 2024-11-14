@@ -82,6 +82,13 @@ Pour mettre à jour les scripts :
 1. Désinstallez l'ancienne version
 2. Réexécutez la commande d'installation
 
+## 🗑️ Désinstallation
+
+Pour désinstaller les paquets :
+```powershell
+iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/uninstall.ps1 | iex
+```
+
 ## 🤝 Contributions
 
 Les contributions sont les bienvenues ! Pour contribuer :
