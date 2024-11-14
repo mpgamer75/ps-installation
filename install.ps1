@@ -39,7 +39,7 @@ function Write-Log {
 
 # Vérification des prérequis
 function Test-Prerequisites {
-    # Vérifier PowerShell version
+    # Vérifie la version de PowerShell
     if ($PSVersionTable.PSVersion.Major -lt 5) {
         Write-Log "PowerShell 5.1 ou supérieur requis" -Level ERROR
         return $false
@@ -61,7 +61,7 @@ function Test-Prerequisites {
     return $true
 }
 
-# Lister les paquets disponibles
+# Liste les paquets disponibles
 function Get-AvailablePackages {
     Write-Host "`n=== PAQUETS DISPONIBLES ===" -ForegroundColor Cyan
     
@@ -106,7 +106,7 @@ function Get-AvailablePackages {
     }
 }
 
-# Installer un paquet
+# Installe un paquet
 function Install-Package {
     param([string]$PackageName)
     

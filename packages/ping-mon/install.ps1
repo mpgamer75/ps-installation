@@ -134,13 +134,13 @@ catch {
 
 function Install-PingMonPackage {
     try {
-        # Créer le dossier de destination s'il n'existe pas
+        
         $installPath = "C:\Program Files\WindowsPowerShell\Scripts"
         if (-not (Test-Path $installPath)) {
             New-Item -ItemType Directory -Path $installPath -Force | Out-Null
         }
 
-        # Installer le script
+        
         $scriptFile = Join-Path $installPath "ping-mon.ps1"
         Set-Content -Path $scriptFile -Value $scriptContent
 
@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File "$scriptFile" %*
         $cmdFile = Join-Path $installPath "ping-mon.cmd"
         Set-Content -Path $cmdFile -Value $cmdContent
 
-        # Mettre à jour le PATH si nécessaire
+        
         $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
         if ($currentPath -notlike "*$installPath*") {
             [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$installPath", "Machine")

@@ -219,7 +219,7 @@ function Install-CleanPackage {
             New-Item -ItemType Directory -Path $installPath -Force | Out-Null
         }
 
-        # Installer le script
+        # Installe le script
         $scriptFile = Join-Path $installPath "clean.ps1"
         Set-Content -Path $scriptFile -Value $scriptContent
 
@@ -231,7 +231,7 @@ powershell -ExecutionPolicy Bypass -File "$scriptFile" %*
         $cmdFile = Join-Path $installPath "clean.cmd"
         Set-Content -Path $cmdFile -Value $cmdContent
 
-        # Mettre à jour le PATH si nécessaire
+        # MAJ du PATH
         $currentPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
         if ($currentPath -notlike "*$installPath*") {
             [Environment]::SetEnvironmentVariable("PATH", "$currentPath;$installPath", "Machine")
