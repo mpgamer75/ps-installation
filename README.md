@@ -96,6 +96,6 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 ## 📧 Contact
 
-Votre Nom - [@charles.ltgj](https://instagram.com/charles.ltgj)
+Votre Nom - Charles L 
 
 Lien du projet : [https://github.com/mpgamer75/ps-installation](https://github.com/votre-username/ps-installation)
