@@ -1,0 +1,19 @@
+{
+    "name": "monitor",
+    "version": "1.0.0",
+    "description": "Moniteur système en temps réel",
+    "author": "Votre nom",
+    "dependencies": [],
+    "commands": ["monitor"],
+    "tags": ["system", "monitoring", "performance"],
+    "minPowershellVersion": "5.1",
+    "requiredModules": [],
+    "permissions": ["administrator"],
+    "installPath": "C:\\Program Files\\WindowsPowerShell\\Scripts",
+    "files": [
+        {
+            "source": "monitor.ps1",
+            "destination": "monitor.ps1"
+        }
+    ]
+}

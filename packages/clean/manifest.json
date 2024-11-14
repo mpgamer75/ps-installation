@@ -1,0 +1,19 @@
+{
+    "name": "clean",
+    "version": "1.0.0",
+    "description": "Nettoyeur système avec interface interactive",
+    "author": "Charles",
+    "dependencies": [],
+    "commands": ["clean"],
+    "tags": ["system", "cleanup", "maintenance"],
+    "minPowershellVersion": "5.1",
+    "requiredModules": [],
+    "permissions": ["administrator"],
+    "installPath": "C:\\Program Files\\WindowsPowerShell\\Scripts",
+    "files": [
+        {
+            "source": "clean.ps1",
+            "destination": "clean.ps1"
+        }
+    ]
+}

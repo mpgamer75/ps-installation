@@ -1,0 +1,19 @@
+{
+    "name": "ping-mon",
+    "version": "1.0.0",
+    "description": "Moniteur de ping avec interface interactive",
+    "author": "Charles",
+    "dependencies": [],
+    "commands": ["ping-mon"],
+    "tags": ["network", "monitoring", "ping"],
+    "minPowershellVersion": "5.1",
+    "requiredModules": [],
+    "permissions": ["administrator"],
+    "installPath": "C:\\Program Files\\WindowsPowerShell\\Scripts",
+    "files": [
+        {
+            "source": "ping-mon.ps1",
+            "destination": "ping-mon.ps1"
+        }
+    ]
+}

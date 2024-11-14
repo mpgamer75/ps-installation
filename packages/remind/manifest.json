@@ -1,0 +1,19 @@
+{
+    "name": "remind",
+    "version": "1.0.0",
+    "description": "Système de rappels avec notifications",
+    "author": "Charles",
+    "dependencies": [],
+    "commands": ["remind"],
+    "tags": ["reminder", "notification", "task"],
+    "minPowershellVersion": "5.1",
+    "requiredModules": [],
+    "permissions": ["administrator"],
+    "installPath": "C:\\Program Files\\WindowsPowerShell\\Scripts",
+    "files": [
+        {
+            "source": "remind.ps1",
+            "destination": "remind.ps1"
+        }
+    ]
+}
