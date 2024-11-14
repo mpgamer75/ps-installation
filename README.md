@@ -1,6 +1,7 @@
 # PS-Installation 🚀
 
 Une collection de scripts PowerShell utilitaires pour Windows, faciles à installer et à utiliser.
+Pour faciliter l'utilisation du terminal sur Windows ( rapprochement des commandes que l'on peut retrouver sur MacOS / Linux). 
 
 ## 📦 Paquets disponibles
 
