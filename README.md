@@ -6,7 +6,9 @@ Pour faciliter l'utilisation du terminal sur Windows ( rapprochement des command
 ## 📦 Paquets disponibles
 
 ### 🖥️ Monitor (`monitor`)
+
 Moniteur système en temps réel affichant :
+
 - Utilisation CPU
 - État de la mémoire
 - Espace disque
@@ -15,7 +17,9 @@ Moniteur système en temps réel affichant :
 - État des services critiques
 
 ### 🧹 Clean (`clean`)
+
 Nettoyeur système interactif permettant de :
+
 - Nettoyer différents emplacements (Bureau, Documents, etc.)
 - Supprimer les fichiers temporaires
 - Effacer les logs
@@ -24,7 +28,9 @@ Nettoyeur système interactif permettant de :
 - Gérer les vieux fichiers
 
 ### 📡 Ping Monitor (`ping-mon`)
+
 Outil de surveillance réseau offrant :
+
 - Surveillance de plusieurs hôtes prédéfinis
 - Ajout d'hôtes personnalisés
 - Statistiques en temps réel
@@ -33,7 +39,9 @@ Outil de surveillance réseau offrant :
 - Graphiques de latence
 
 ### ⏰ Remind (`remind`)
+
 Système de rappels avec :
+
 - Création de rappels avec date et heure
 - Notifications Windows
 - Gestion des rappels actifs
@@ -44,13 +52,15 @@ Système de rappels avec :
 
 1. Ouvrez PowerShell en tant qu'administrateur
 2. Exécutez la commande :
+
 ```powershell
-iwr -useb https://raw.githubusercontent.com/votre-username/ps-installation/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1 | iex
 ```
 
 ## 🛠️ Utilisation
 
 Après l'installation, utilisez les commandes suivantes :
+
 - `monitor` : Lance le moniteur système
 - `clean` : Lance l'utilitaire de nettoyage
 - `ping-mon` : Lance le moniteur de ping
@@ -79,12 +89,14 @@ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ## 🔄 Mise à jour
 
 Pour mettre à jour les scripts :
+
 1. Désinstallez l'ancienne version
 2. Réexécutez la commande d'installation
 
 ## 🗑️ Désinstallation
 
 Pour désinstaller les paquets :
+
 ```powershell
 iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1 | iex
 ```
@@ -92,6 +104,7 @@ iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/insta
 ## 🤝 Contributions
 
 Les contributions sont les bienvenues ! Pour contribuer :
+
 1. Fork le projet
 2. Créez votre branche (`git checkout -b feature/AmazingFeature`)
 3. Committez vos changements (`git commit -m 'Add AmazingFeature'`)
