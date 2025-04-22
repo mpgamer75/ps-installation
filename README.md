@@ -117,6 +117,6 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 ## 📧 Contact
 
-Votre Nom - Charles L 
+- Charles L 
 
 Lien du projet : [https://github.com/mpgamer75/ps-installation](https://github.com/votre-username/ps-installation)
