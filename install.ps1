@@ -1,4 +1,3 @@
-<#
 .SYNOPSIS
     Gestionnaire de paquets pour scripts PowerShell
 .DESCRIPTION
@@ -170,7 +169,7 @@ function Show-MainMenu {
         
         switch ($choice) {
             "1" { 
-                Download-PackageFiles 
+                Get-PackageFiles 
                 Write-Host "`nAppuyez sur une touche pour continuer..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
@@ -183,7 +182,14 @@ function Show-MainMenu {
                 Get-AvailablePackages
                 Write-Host "`nQuel paquet souhaitez-vous installer ?"
                 $package = Read-Host "Nom du paquet"
-                Install-Package $package
+                
+                # Vérification si le paquet existe dans la liste des paquets disponibles
+                if (@("monitor", "clean", "ping-mon", "remind") -contains $package) {
+                    Install-Package $package
+                }
+                else {
+                    Write-Host "`nNom du paquet non valide!" -ForegroundColor Red
+                }
                 Write-Host "`nAppuyez sur une touche pour continuer..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             }
