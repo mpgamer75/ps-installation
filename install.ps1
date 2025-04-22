@@ -1,12 +1,3 @@
-.SYNOPSIS
-    Gestionnaire de paquets pour scripts PowerShell
-.DESCRIPTION
-    Installe, met à jour et gère les scripts PowerShell personnalisés
-.NOTES
-    Version: 1.0.0
-    Author: Charles L.
-#>
-
 # Vérification des privilèges administrateur
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     Write-Warning "Ce script nécessite des droits administrateur!"
