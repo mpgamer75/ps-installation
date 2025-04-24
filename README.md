@@ -98,7 +98,7 @@ Pour mettre à jour les scripts :
 Pour désinstaller les paquets :
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/mpgamer75/ps-installation/main/uninstall.ps1 | iex
 ```
 
 ## 🤝 Contributions
