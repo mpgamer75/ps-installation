@@ -21,22 +21,23 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'clean'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'clean' -Synopsis 'Libère de l''espace disque : analyse, aperçu, puis suppression confirmée.' `
+    Show-PstHelp -Name 'clean' -Synopsis (L 'Libère de l''espace disque : analyse, aperçu, puis suppression confirmée.') `
         -Usage @(
-            'clean [-DryRun] [-Yes] [-Only <cibles>]',
-            'clean -Path <dossier> [-OlderThan <jours>] [-Include <motifs>] [-DryRun] [-Yes]'
+            (L 'clean [-DryRun] [-Yes] [-Only <cibles>]'),
+            (L 'clean -Path <dossier> [-OlderThan <jours>] [-Include <motifs>] [-DryRun] [-Yes]')
         ) `
         -Options @(
-            @('-DryRun', 'Montre ce qui serait supprimé, sans rien toucher'),
-            @('-Yes', 'Ne pose aucune question (toutes les cibles accessibles)'),
-            @('-Only <cibles>', 'Limite aux cibles données, ex. : temp,browsers'),
-            @('-List', 'Affiche les cibles connues et quitte'),
-            @('-Elevate', 'Relance en administrateur pour les cibles système'),
-            @('-Path <dossier>', 'Nettoie un dossier précis (avec -OlderThan et/ou -Include)'),
-            @('-OlderThan <jours>', 'Ne garde que les fichiers non modifiés depuis N jours'),
-            @('-Include <motifs>', 'Motifs de fichiers, ex. : *.log,*.tmp')
+            @('-DryRun', (L 'Montre ce qui serait supprimé, sans rien toucher')),
+            @('-Yes', (L 'Ne pose aucune question (toutes les cibles accessibles)')),
+            @((L '-Only <cibles>'), (L 'Limite aux cibles données, ex. : temp,browsers')),
+            @('-List', (L 'Affiche les cibles connues et quitte')),
+            @('-Elevate', (L 'Relance en administrateur pour les cibles système')),
+            @((L '-Path <dossier>'), (L 'Nettoie un dossier précis (avec -OlderThan et/ou -Include)')),
+            @((L '-OlderThan <jours>'), (L 'Ne garde que les fichiers non modifiés depuis N jours')),
+            @((L '-Include <motifs>'), (L 'Motifs de fichiers, ex. : *.log,*.tmp'))
         ) `
         -Examples @('clean', 'clean -DryRun', 'clean -Only temp,thumbs -Yes', 'clean -Path D:\Logs -OlderThan 30 -Include *.log')
     exit 0
@@ -117,12 +118,12 @@ function Remove-FileList {
 # ── Mode « dossier précis » ──────────────────────────────────────────────────
 
 if ($Path) {
-    Show-PstHeader -Tool 'clean' -Subtitle 'dossier personnalisé'
-    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err "Dossier introuvable : $Path"; exit 1 }
+    Show-PstHeader -Tool 'clean' -Subtitle (L 'dossier personnalisé')
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err (L 'Dossier introuvable : {0}' $Path); exit 1 }
     $root = (Resolve-Path -LiteralPath $Path).ProviderPath
-    if (-not (Test-SafeRoot $root)) { Write-PstStatus err "Par sécurité, ce dossier ne peut pas être nettoyé en bloc : $root"; exit 1 }
+    if (-not (Test-SafeRoot $root)) { Write-PstStatus err (L 'Par sécurité, ce dossier ne peut pas être nettoyé en bloc : {0}' $root); exit 1 }
     if ($OlderThan -le 0 -and -not $Include) {
-        Write-PstStatus err 'Précisez -OlderThan <jours> et/ou -Include <motifs> pour cibler les fichiers.'
+        Write-PstStatus err (L 'Précisez -OlderThan <jours> et/ou -Include <motifs> pour cibler les fichiers.')
         exit 1
     }
     if ($Include) { $Include = @($Include | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) }
@@ -136,28 +137,28 @@ if ($Path) {
     foreach ($f in $files) { $total += $f.Length }
 
     $criteria = @()
-    if ($Include) { $criteria += "motifs : $($Include -join ', ')" }
-    if ($OlderThan -gt 0) { $criteria += "plus de $OlderThan jours" }
+    if ($Include) { $criteria += (L 'motifs : {0}' ($Include -join ', ')) }
+    if ($OlderThan -gt 0) { $criteria += (L 'plus de {0} jours' $OlderThan) }
     Write-PstStatus info "$root"
-    Write-PstStatus info ("Critères $($script:Pst.Glyph.Dot) " + ($criteria -join " $($script:Pst.Glyph.Dot) "))
-    Write-PstStatus info ("{0} fichier(s) $($script:Pst.Glyph.Dot) {1}" -f @($files).Count, (Format-PstSize $total))
+    Write-PstStatus info (L 'Critères {0} {1}' $script:Pst.Glyph.Dot ($criteria -join " $($script:Pst.Glyph.Dot) "))
+    Write-PstStatus info (L '{0} fichier(s) {2} {1}' @($files).Count (Format-PstSize $total) $script:Pst.Glyph.Dot)
     Write-Host ''
     @($files | Sort-Object Length -Descending | Select-Object -First 10) | ForEach-Object {
         Write-Host ('    ' + (Format-PstPad (Format-PstSize $_.Length) 10 -Right) + '  ' + (Paint (Limit-PstText $_.FullName.Substring($root.Length).TrimStart('\', '/') ((Get-PstWidth) - 18)) 'Dim'))
     }
-    if (@($files).Count -gt 10) { Write-Host (Paint "    ... et $(@($files).Count - 10) autre(s)" 'Dim') }
+    if (@($files).Count -gt 10) { Write-Host (Paint (L '    ... et {0} autre(s)' (@($files).Count - 10)) 'Dim') }
     Write-Host ''
 
-    if (@($files).Count -eq 0) { Write-PstStatus ok 'Rien à supprimer.'; exit 0 }
-    if ($DryRun) { Write-PstStatus info 'Simulation : aucun fichier supprimé.'; exit 0 }
+    if (@($files).Count -eq 0) { Write-PstStatus ok (L 'Rien à supprimer.'); exit 0 }
+    if ($DryRun) { Write-PstStatus info (L 'Simulation : aucun fichier supprimé.'); exit 0 }
     if (-not $Yes) {
-        if (-not (Test-PstInteractive)) { Write-PstStatus warn 'Session non interactive : ajoutez -Yes pour supprimer.'; exit 0 }
-        if (-not (Read-PstConfirm "Supprimer définitivement ces $(@($files).Count) fichier(s) ?")) { Write-PstStatus info 'Annulé.'; exit 0 }
+        if (-not (Test-PstInteractive)) { Write-PstStatus warn (L 'Session non interactive : ajoutez -Yes pour supprimer.'); exit 0 }
+        if (-not (Read-PstConfirm (L 'Supprimer définitivement ces {0} fichier(s) ?' @($files).Count))) { Write-PstStatus info (L 'Annulé.'); exit 0 }
     }
     $r = Remove-FileList $files
     Remove-EmptyDirs $root
-    Write-PstStatus ok ("{0} libérés $($script:Pst.Glyph.Dot) {1} fichier(s) supprimé(s)" -f (Format-PstSize $r.Freed), $r.Done)
-    if ($r.Skipped) { Write-PstStatus warn "$($r.Skipped) fichier(s) verrouillé(s) ou protégé(s) ignoré(s)" }
+    Write-PstStatus ok (L '{0} libérés {2} {1} fichier(s) supprimé(s)' (Format-PstSize $r.Freed) $r.Done $script:Pst.Glyph.Dot)
+    if ($r.Skipped) { Write-PstStatus warn (L '{0} fichier(s) verrouillé(s) ou protégé(s) ignoré(s)' $r.Skipped) }
     exit 0
 }
 
@@ -169,21 +170,21 @@ function Get-CleanTargets {
     $local = $env:LOCALAPPDATA
     $win = $env:WINDIR
     return @(
-        @{ Id = 'temp'; Label = 'Fichiers temporaires de l''utilisateur'; Admin = $false; Roots = @($env:TEMP) },
-        @{ Id = 'browsers'; Label = 'Caches des navigateurs (Chrome, Edge, Firefox)'; Admin = $false; Roots = @(
+        @{ Id = 'temp'; Label = (L 'Fichiers temporaires de l''utilisateur'); Admin = $false; Roots = @($env:TEMP) },
+        @{ Id = 'browsers'; Label = (L 'Caches des navigateurs (Chrome, Edge, Firefox)'); Admin = $false; Roots = @(
                 "$local\Google\Chrome\User Data\*\Cache", "$local\Google\Chrome\User Data\*\Code Cache",
                 "$local\Microsoft\Edge\User Data\*\Cache", "$local\Microsoft\Edge\User Data\*\Code Cache",
                 "$local\Mozilla\Firefox\Profiles\*\cache2"
             )
         },
-        @{ Id = 'thumbs'; Label = 'Cache des miniatures de l''Explorateur'; Admin = $false; Roots = @("$local\Microsoft\Windows\Explorer"); Patterns = @('thumbcache_*.db', 'iconcache_*.db'); Flat = $true },
-        @{ Id = 'crash'; Label = 'Rapports d''erreurs et vidages mémoire'; Admin = $false; Roots = @(
+        @{ Id = 'thumbs'; Label = (L 'Cache des miniatures de l''Explorateur'); Admin = $false; Roots = @("$local\Microsoft\Windows\Explorer"); Patterns = @('thumbcache_*.db', 'iconcache_*.db'); Flat = $true },
+        @{ Id = 'crash'; Label = (L 'Rapports d''erreurs et vidages mémoire'); Admin = $false; Roots = @(
                 "$local\CrashDumps", "$local\Microsoft\Windows\WER\ReportArchive", "$local\Microsoft\Windows\WER\ReportQueue"
             )
         },
-        @{ Id = 'recycle'; Label = 'Corbeille'; Admin = $false; Special = 'recycle' },
-        @{ Id = 'wintemp'; Label = 'Fichiers temporaires de Windows'; Admin = $true; Roots = @("$win\Temp") },
-        @{ Id = 'wupdate'; Label = 'Téléchargements Windows Update'; Admin = $true; Roots = @("$win\SoftwareDistribution\Download") }
+        @{ Id = 'recycle'; Label = (L 'Corbeille'); Admin = $false; Special = 'recycle' },
+        @{ Id = 'wintemp'; Label = (L 'Fichiers temporaires de Windows'); Admin = $true; Roots = @("$win\Temp") },
+        @{ Id = 'wupdate'; Label = (L 'Téléchargements Windows Update'); Admin = $true; Roots = @("$win\SoftwareDistribution\Download") }
     )
 }
 
@@ -231,14 +232,14 @@ $targets = Get-CleanTargets
 if ($Only) {
     $wanted = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLower() })
     $unknown = @($wanted | Where-Object { @($targets | ForEach-Object { $_.Id }) -notcontains $_ })
-    if ($unknown.Count) { Write-PstStatus err "Cible(s) inconnue(s) : $($unknown -join ', ') $($script:Pst.Glyph.Dot) voir « clean -List »"; exit 1 }
+    if ($unknown.Count) { Write-PstStatus err (L 'Cible(s) inconnue(s) : {0} {1} voir « clean -List »' ($unknown -join ', ') $script:Pst.Glyph.Dot); exit 1 }
     $targets = @($targets | Where-Object { $wanted -contains $_.Id })
 }
 
 $isAdmin = Test-PstAdmin
 
 if ($List) {
-    Show-PstHeader -Tool 'clean' -Subtitle 'cibles'
+    Show-PstHeader -Tool 'clean' -Subtitle (L 'cibles')
     foreach ($t in $targets) {
         $tag = ''
         if ($t.Admin) { $tag = Paint "  $($script:Pst.Glyph.Lock)" 'Warn' }
@@ -252,14 +253,14 @@ if ($Elevate -and -not $isAdmin) {
     $forward = @()
     if ($DryRun) { $forward += '-DryRun' }
     if ($Only) { $forward += '-Only'; $forward += ($Only -join ',') }
-    if (Start-PstElevated -ScriptPath $PSCommandPath -Arguments $forward) { Write-PstStatus ok 'Nettoyage relancé dans une fenêtre administrateur.' }
+    if (Start-PstElevated -ScriptPath $PSCommandPath -Arguments $forward) { Write-PstStatus ok (L 'Nettoyage relancé dans une fenêtre administrateur.') }
     exit 0
 }
 
 # ── Analyse ──────────────────────────────────────────────────────────────────
 
-$subtitle = 'analyse'
-if ($DryRun) { $subtitle = 'simulation' }
+$subtitle = L 'analyse'
+if ($DryRun) { $subtitle = L 'simulation' }
 Show-PstHeader -Tool 'clean' -Subtitle $subtitle
 
 $g = $script:Pst.Glyph
@@ -267,7 +268,7 @@ $scan = @()
 foreach ($t in $targets) {
     $entry = @{ Target = $t; Size = 0.0; Count = 0; Files = $null; Locked = ($t.Admin -and -not $isAdmin) }
     if (-not $entry.Locked) {
-        if ($script:Pst.Ansi) { Write-Host ("  $(Paint $g.Pointer 'Accent') Analyse : $($t.Label)...$($script:Pst.Esc)[K`r") -NoNewline }
+        if ($script:Pst.Ansi) { Write-Host ("  $(Paint $g.Pointer 'Accent') " + (L 'Analyse : {0}...' $t.Label) + "$($script:Pst.Esc)[K`r") -NoNewline }
         if ($t.Special -eq 'recycle') {
             $bin = Get-RecycleBinInfo
             $entry.Size = $bin.Size; $entry.Count = $bin.Count
@@ -296,37 +297,37 @@ foreach ($s in $scan) {
     }
 }
 $table = Format-PstTable -Columns @(
-    @{ Name = 'Cible'; Width = 46 }, @{ Name = 'Taille'; Width = 10; Right = $true },
-    @{ Name = 'Éléments'; Width = 8; Right = $true }, @{ Name = ''; Width = 16 }
+    @{ Name = (L 'Cible'); Width = 46 }, @{ Name = (L 'Taille'); Width = 10; Right = $true },
+    @{ Name = (L 'Éléments'); Width = 8; Right = $true }, @{ Name = ''; Width = 16 }
 ) -Rows $rows
-Format-PstBox -Title "Espace récupérable : $(Format-PstSize $totalSize)" -Lines $table | Write-PstLine
+Format-PstBox -Title (L 'Espace récupérable : {0}' (Format-PstSize $totalSize)) -Lines $table | Write-PstLine
 Write-Host ''
 
 $lockedCount = @($scan | Where-Object { $_.Locked }).Count
 if ($lockedCount -gt 0) {
-    Write-PstStatus info "$lockedCount cible(s) système demandent les droits administrateur : relancez avec « clean -Elevate »."
+    Write-PstStatus info (L '{0} cible(s) système demandent les droits administrateur : relancez avec « clean -Elevate ».' $lockedCount)
 }
 
 $candidates = @($scan | Where-Object { -not $_.Locked -and $_.Count -gt 0 })
-if ($candidates.Count -eq 0) { Write-PstStatus ok 'Tout est déjà propre.'; Write-Host ''; exit 0 }
-if ($DryRun) { Write-PstStatus info 'Simulation : aucun fichier supprimé.'; Write-Host ''; exit 0 }
+if ($candidates.Count -eq 0) { Write-PstStatus ok (L 'Tout est déjà propre.'); Write-Host ''; exit 0 }
+if ($DryRun) { Write-PstStatus info (L 'Simulation : aucun fichier supprimé.'); Write-Host ''; exit 0 }
 
 # ── Sélection et suppression ─────────────────────────────────────────────────
 
 $chosen = $candidates
 if (-not $Yes) {
-    if (-not (Test-PstInteractive)) { Write-PstStatus warn 'Session non interactive : ajoutez -Yes pour supprimer.'; exit 0 }
+    if (-not (Test-PstInteractive)) { Write-PstStatus warn (L 'Session non interactive : ajoutez -Yes pour supprimer.'); exit 0 }
     Write-Host ''
     $labels = @($candidates | ForEach-Object { '{0}  {1}' -f (Format-PstPad $_.Target.Label 46), (Format-PstSize $_.Size) })
     $preset = New-Object 'bool[]' $candidates.Count
     for ($i = 0; $i -lt $candidates.Count; $i++) { $preset[$i] = ($candidates[$i].Target.Id -ne 'recycle') }
-    $picked = Read-PstMultiChoice -Title 'Que voulez-vous nettoyer ?' -Items $labels -Selected $preset
-    if ($null -eq $picked -or @($picked).Count -eq 0) { Write-PstStatus info 'Annulé, rien n''a été supprimé.'; exit 0 }
+    $picked = Read-PstMultiChoice -Title (L 'Que voulez-vous nettoyer ?') -Items $labels -Selected $preset
+    if ($null -eq $picked -or @($picked).Count -eq 0) { Write-PstStatus info (L 'Annulé, rien n''a été supprimé.'); exit 0 }
     $chosen = @($picked | ForEach-Object { $candidates[$_] })
     $sum = 0.0
     foreach ($c in $chosen) { $sum += $c.Size }
     Write-Host ''
-    if (-not (Read-PstConfirm "Supprimer définitivement $(Format-PstSize $sum) ?")) { Write-PstStatus info 'Annulé, rien n''a été supprimé.'; exit 0 }
+    if (-not (Read-PstConfirm (L 'Supprimer définitivement {0} ?' (Format-PstSize $sum)))) { Write-PstStatus info (L 'Annulé, rien n''a été supprimé.'); exit 0 }
 }
 
 Write-Host ''
@@ -338,7 +339,7 @@ foreach ($c in $chosen) {
             $freed += $c.Size
             Write-PstStatus ok ("{0}  {1}" -f (Format-PstPad $c.Target.Label 46), (Format-PstSize $c.Size))
         }
-        catch { Write-PstStatus warn "Corbeille : $($_.Exception.Message)" }
+        catch { Write-PstStatus warn (L 'Corbeille : {0}' $_.Exception.Message) }
         continue
     }
     $r = Remove-FileList $c.Files
@@ -348,7 +349,7 @@ foreach ($c in $chosen) {
 }
 
 Write-Host ''
-$summary = @((Paint "$(Format-PstSize $freed) libérés" 'Ok' -Bold))
-if ($skipped) { $summary += Paint "$skipped fichier(s) en cours d'utilisation conservé(s)" 'Dim' }
-Format-PstBox -Title 'Nettoyage terminé' -Lines $summary -Width 60 -Color 'Ok' | Write-PstLine
+$summary = @((Paint (L '{0} libérés' (Format-PstSize $freed)) 'Ok' -Bold))
+if ($skipped) { $summary += Paint (L '{0} fichier(s) en cours d''utilisation conservé(s)' $skipped) 'Dim' }
+Format-PstBox -Title (L 'Nettoyage terminé') -Lines $summary -Width 60 -Color 'Ok' | Write-PstLine
 Write-Host ''

@@ -26,6 +26,12 @@ function Get-DictionaryName {
 # Mots français fréquents : repèrent un texte affiché qui aurait échappé à L.
 $french = '(?i)(\b(le|la|les|des|une|est|pour|avec|sans|dans|sur|vos?|votre|aucun|fichiers?|dossier|introuvable|impossible|commande)\b|[éèêàùçô])'
 $missingTotal = 0; $unwrappedTotal = 0
+$common = @{}
+$commonFile = Join-Path (Join-Path (Join-Path $src 'i18n') 'en') 'PsTools.psd1'
+if (Test-Path $commonFile) {
+    $block = [scriptblock]::Create([IO.File]::ReadAllText($commonFile).TrimStart([char]0xFEFF))
+    try { $block.CheckRestrictedLanguage([string[]]@(), [string[]]@(), $false); $common = & $block } catch { $null = $_ }
+}
 
 foreach ($file in $Path) {
     $file = (Resolve-Path $file).Path
@@ -44,10 +50,11 @@ foreach ($file in $Path) {
     $dict = @{}
     if (Test-Path $dictFile) {
         $block = [scriptblock]::Create([IO.File]::ReadAllText($dictFile).TrimStart([char]0xFEFF))
-        try { $block.CheckRestrictedLanguage(@(), @(), $false); $dict = & $block }
+        try { $block.CheckRestrictedLanguage([string[]]@(), [string[]]@(), $false); $dict = & $block }
         catch { Write-Host "  × $name.psd1 : $($_.Exception.Message)" -ForegroundColor Red; $missingTotal++ }
     }
-    $missing = @($keys | Where-Object { -not $dict.ContainsKey($_) })
+    # Les textes du dictionnaire commun (PsTools) sont disponibles partout.
+    $missing = @($keys | Where-Object { -not $dict.ContainsKey($_) -and -not $common.ContainsKey($_) })
     $unused = @($dict.Keys | Where-Object { -not $keys.Contains([string]$_) })
     $badPlaceholders = @($keys | Where-Object { $dict.ContainsKey($_) } | Where-Object {
             $a = @([regex]::Matches($_, '\{\d+[^}]*\}') | ForEach-Object { ($_.Value -replace ':.*\}', '}') } | Sort-Object -Unique) -join ','

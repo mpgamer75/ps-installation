@@ -33,12 +33,13 @@ elseif ($env:LOCALAPPDATA) { $global:PstShell.DataDir = Join-Path (Join-Path $en
 else { $global:PstShell.DataDir = Join-Path (Join-Path (Join-Path $HOME '.local') 'share') 'ps-tools' }
 
 # Réglages choisis dans l'assistant (pst setup) ; les variables PSTOOLS_NO_* restent prioritaires.
-$pstSettings = @{ theme = 'nuit'; prompt = $true; keys = $true; aliases = $true }
+$pstSettings = @{ theme = 'cyan'; prompt = $true; keys = $true; aliases = $true; language = $null }
 try {
     $pstConfigFile = Join-Path $global:PstShell.DataDir 'config.json'
     if (Test-Path -LiteralPath $pstConfigFile) {
         $pstConfig = [IO.File]::ReadAllText($pstConfigFile) | ConvertFrom-Json
         if ($pstConfig.theme) { $pstSettings.theme = [string]$pstConfig.theme }
+        if ($pstConfig.language) { $pstSettings.language = [string]$pstConfig.language }
         if ($pstConfig.shell) {
             foreach ($name in 'prompt', 'keys', 'aliases') { if ($null -ne $pstConfig.shell.$name) { $pstSettings[$name] = [bool]$pstConfig.shell.$name } }
         }
@@ -50,8 +51,62 @@ if ($env:PSTOOLS_NO_PROMPT) { $pstSettings.prompt = $false }
 if ($env:PSTOOLS_NO_KEYS) { $pstSettings.keys = $false }
 if ($env:PSTOOLS_NO_ALIASES) { $pstSettings.aliases = $false }
 
+# Langue des messages, décidée une fois au chargement (même ordre que les outils) :
+# PSTOOLS_LANG, réglage enregistré, langue de Windows (fr*), sinon anglais.
+# La bibliothèque n'est pas chargée ici (rapidité) : petite table anglaise intégrée.
+$pstLang = $env:PSTOOLS_LANG
+if (-not $pstLang) { $pstLang = $pstSettings.language }
+if (-not $pstLang) {
+    $pstLang = 'en'
+    try { if ((Get-Culture).TwoLetterISOLanguageName -eq 'fr' -or (Get-UICulture).TwoLetterISOLanguageName -eq 'fr') { $pstLang = 'fr' } } catch { $null = $_ }
+}
+if ($pstLang -notin 'fr', 'en') { $pstLang = 'en' }
+$global:PstShell.Lang = $pstLang
+$global:PstShell.Strings = @{}
+if ($pstLang -eq 'en') {
+    $global:PstShell.Strings = @{
+        'ps-tools : transformer la ligne en commande (IA)' = 'ps-tools: turn the line into a command (AI)'
+        'ps-tools : relancer en administrateur' = 'ps-tools: run again as administrator'
+        'ps-tools : copier la ligne' = 'ps-tools: copy the line'
+        'ps-tools : état Git (gst)' = 'ps-tools: Git status (gst)'
+        '{0}  (fonction)' = '{0}  (function)'
+        'Lecteur' = 'Drive'
+        'Taille' = 'Size'
+        'Utilisé' = 'Used'
+        'Libre' = 'Free'
+        'Util.' = 'Use%'
+        'Go' = 'GB'
+        '  Utilisation : sudo <commande>' = '  Usage: sudo <command>'
+        '  Élévation annulée : {0}' = '  Elevation cancelled: {0}'
+        '  Environnement rechargé.' = '  Environment reloaded.'
+        '  Donnez un nom au favori : mark <nom>' = '  Give the bookmark a name: mark <name>'
+        '  Favori « {0} » -> {1}' = '  Bookmark "{0}" -> {1}'
+        '  Favori « {0} » retiré.' = '  Bookmark "{0}" removed.'
+        '  Aucun favori « {0} ».' = '  No bookmark "{0}".'
+        '  Aucun favori. Dans un dossier : mark <nom>, puis jump <nom> depuis n''importe où.' = '  No bookmarks. In a folder: mark <name>, then jump <name> from anywhere.'
+        '  Pas de dossier précédent.' = '  No previous folder.'
+        '  Aucun favori « {0} ». Liste : marks' = '  No bookmark "{0}". List: marks'
+        '  Le dossier n''existe plus : {0}' = '  The folder no longer exists: {0}'
+        '  Rien à analyser : aucune commande ni erreur récente.' = '  Nothing to analyze: no recent command or error.'
+        'Commande : {0}' = 'Command: {0}'
+        'Erreur : {0}' = 'Error: {0}'
+        'Code de sortie : {0}' = 'Exit code: {0}'
+        'Explique pourquoi cette commande a échoué et donne la commande corrigée.' = 'Explain why this command failed and give the corrected command.'
+    }
+}
+
+function global:PstText {
+    # Traduit un message de l'intégration (texte français = clé) puis remplit les {0}, {1}...
+    param([Parameter(Position = 0)][string]$Text, [Parameter(Position = 1, ValueFromRemainingArguments = $true)][object[]]$Values)
+    $out = $Text
+    if ($global:PstShell.Strings.ContainsKey($Text)) { $out = $global:PstShell.Strings[$Text] }
+    if ($Values -and $Values.Count) { return ($out -f $Values) }
+    return $out
+}
+
 # Couleurs de l'invite selon le thème (mêmes palettes que les outils).
 $pstPalettes = @{
+    cyan  = @{ Path = @(34, 211, 238); Git = @(167, 139, 250); Ok = @(52, 211, 153); Err = @(248, 113, 113); Dim = @(100, 116, 139); Admin = @(251, 191, 36) }
     nuit  = @{ Path = @(86, 182, 255); Git = @(178, 132, 255); Ok = @(80, 220, 140); Err = @(255, 95, 110); Dim = @(125, 133, 150); Admin = @(255, 190, 80) }
     ocean = @{ Path = @(64, 200, 224); Git = @(96, 140, 255); Ok = @(70, 220, 170); Err = @(255, 100, 120); Dim = @(120, 140, 160); Admin = @(255, 200, 90) }
     ambre = @{ Path = @(255, 176, 59); Git = @(255, 122, 89); Ok = @(170, 220, 110); Err = @(255, 92, 82); Dim = @(150, 140, 125); Admin = @(255, 214, 102) }
@@ -59,7 +114,7 @@ $pstPalettes = @{
     mono  = @{ Path = @(215, 215, 215); Git = @(175, 175, 175); Ok = @(200, 200, 200); Err = @(255, 255, 255); Dim = @(120, 120, 120); Admin = @(235, 235, 235) }
 }
 $global:PstShell.Colors = $pstPalettes[$pstSettings.theme]
-if (-not $global:PstShell.Colors) { $global:PstShell.Colors = $pstPalettes.nuit }
+if (-not $global:PstShell.Colors) { $global:PstShell.Colors = $pstPalettes.cyan }
 
 function global:Test-PstFree {
     # Vrai si aucun alias, fonction ou programme ne porte déjà ce nom.
@@ -194,7 +249,7 @@ if ($pstSettings.keys -and (Get-Module -Name PSReadLine)) {
 
     try {
         # Alt+A : transforme la phrase tapée en commande, grâce à « ask ».
-        Set-PSReadLineKeyHandler -Key 'Alt+a' -BriefDescription 'PstAsk' -Description 'ps-tools : transformer la ligne en commande (IA)' -ScriptBlock {
+        Set-PSReadLineKeyHandler -Key 'Alt+a' -BriefDescription 'PstAsk' -Description (PstText 'ps-tools : transformer la ligne en commande (IA)') -ScriptBlock {
             $line = $null; $cursor = $null
             [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
             if ([string]::IsNullOrWhiteSpace($line)) { return }
@@ -208,7 +263,7 @@ if ($pstSettings.keys -and (Get-Module -Name PSReadLine)) {
             else { [Microsoft.PowerShell.PSConsoleReadLine]::Ding() }
         }
         # Alt+S : préfixe la ligne par « sudo » (ou la dernière commande si la ligne est vide).
-        Set-PSReadLineKeyHandler -Key 'Alt+s' -BriefDescription 'PstSudo' -Description 'ps-tools : relancer en administrateur' -ScriptBlock {
+        Set-PSReadLineKeyHandler -Key 'Alt+s' -BriefDescription 'PstSudo' -Description (PstText 'ps-tools : relancer en administrateur') -ScriptBlock {
             $line = $null; $cursor = $null
             [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
             if ([string]::IsNullOrWhiteSpace($line)) {
@@ -222,13 +277,13 @@ if ($pstSettings.keys -and (Get-Module -Name PSReadLine)) {
             }
         }
         # Alt+C : copie la ligne en cours dans le presse-papiers.
-        Set-PSReadLineKeyHandler -Key 'Alt+c' -BriefDescription 'PstCopy' -Description 'ps-tools : copier la ligne' -ScriptBlock {
+        Set-PSReadLineKeyHandler -Key 'Alt+c' -BriefDescription 'PstCopy' -Description (PstText 'ps-tools : copier la ligne') -ScriptBlock {
             $line = $null; $cursor = $null
             [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
             if ($line) { try { Set-Clipboard -Value $line } catch { $null = $_ } }
         }
         # Alt+G : état Git du dossier courant, sans perdre la ligne en cours.
-        Set-PSReadLineKeyHandler -Key 'Alt+g' -BriefDescription 'PstGit' -Description 'ps-tools : état Git (gst)' -ScriptBlock {
+        Set-PSReadLineKeyHandler -Key 'Alt+g' -BriefDescription 'PstGit' -Description (PstText 'ps-tools : état Git (gst)') -ScriptBlock {
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert('gst')
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
@@ -270,7 +325,7 @@ if ($pstSettings.aliases) {
             foreach ($c in @(Get-Command -Name $Name -All -ErrorAction SilentlyContinue)) {
                 switch ($c.CommandType) {
                     'Alias' { "$($c.Name) -> $($c.Definition)  (alias)" }
-                    'Function' { "$($c.Name)  (fonction)" }
+                    'Function' { PstText '{0}  (fonction)' $c.Name }
                     'Cmdlet' { "$($c.Name)  (cmdlet, $($c.Source))" }
                     default { $c.Source }
                 }
@@ -313,10 +368,11 @@ if ($pstSettings.aliases) {
     }
     if (Test-PstFree 'df') {
         function global:df {
-            Write-Host ('  {0,-8} {1,10} {2,10} {3,10} {4,6}' -f 'Lecteur', 'Taille', 'Utilisé', 'Libre', 'Util.')
+            Write-Host ('  {0,-8} {1,10} {2,10} {3,10} {4,6}' -f (PstText 'Lecteur'), (PstText 'Taille'), (PstText 'Utilisé'), (PstText 'Libre'), (PstText 'Util.'))
+            $unit = PstText 'Go'
             foreach ($d in (Get-PSDrive -PSProvider FileSystem | Where-Object { $null -ne $_.Used -and ($_.Used + $_.Free) -gt 0 })) {
                 $total = $d.Used + $d.Free
-                Write-Host ('  {0,-8} {1,7:N1} Go {2,7:N1} Go {3,7:N1} Go {4,5:N0}%' -f $d.Name, ($total / 1GB), ($d.Used / 1GB), ($d.Free / 1GB), ($d.Used / $total * 100))
+                Write-Host ('  {0,-8} {1,7:N1} {5} {2,7:N1} {5} {3,7:N1} {5} {4,5:N0}%' -f $d.Name, ($total / 1GB), ($d.Used / 1GB), ($d.Free / 1GB), ($d.Used / $total * 100), $unit)
             }
         }
     }
@@ -330,12 +386,12 @@ if ($pstSettings.aliases) {
     if (Test-PstFree 'sudo') {
         function global:sudo {
             # Exécute une commande dans une fenêtre administrateur (invite UAC), dans le même dossier.
-            if (-not $args) { Write-Host '  Utilisation : sudo <commande>'; return }
+            if (-not $args) { Write-Host (PstText '  Utilisation : sudo <commande>'); return }
             $shell = (Get-Process -Id $PID).Path
             $command = "Set-Location -LiteralPath '$((Get-Location).ProviderPath -replace "'", "''")'; $($args -join ' ')"
             $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
             try { Start-Process -FilePath $shell -Verb RunAs -ArgumentList '-NoExit', '-NoLogo', '-EncodedCommand', $encoded }
-            catch { Write-Host "  Élévation annulée : $($_.Exception.Message)" }
+            catch { Write-Host (PstText '  Élévation annulée : {0}' $_.Exception.Message) }
         }
     }
     if (Test-PstFree 'reload') {
@@ -344,7 +400,7 @@ if ($pstSettings.aliases) {
             $paths = @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User')) | Where-Object { $_ }
             if ($paths) { $env:PATH = ($paths -join ';') }
             if (Test-Path -LiteralPath $PROFILE.CurrentUserAllHosts) { . $PROFILE.CurrentUserAllHosts }
-            Write-Host '  Environnement rechargé.'
+            Write-Host (PstText '  Environnement rechargé.')
         }
     }
 }
@@ -381,25 +437,25 @@ if (Test-PstFree 'mark') {
         param([string]$Name)
         $here = (Get-Location).ProviderPath
         if (-not $Name) { $Name = (Split-Path -Leaf $here).ToLower() -replace '[^a-z0-9_-]', '' }
-        if (-not $Name) { Write-Host '  Donnez un nom au favori : mark <nom>'; return }
+        if (-not $Name) { Write-Host (PstText '  Donnez un nom au favori : mark <nom>'); return }
         $marks = Get-PstMarks
         $marks[$Name] = $here
         Save-PstMarks $marks
-        Write-Host "  Favori « $Name » -> $here"
+        Write-Host (PstText '  Favori « {0} » -> {1}' $Name $here)
     }
 }
 if (Test-PstFree 'unmark') {
     function global:unmark {
         param([Parameter(Mandatory = $true)][string]$Name)
         $marks = Get-PstMarks
-        if ($marks.ContainsKey($Name)) { $marks.Remove($Name); Save-PstMarks $marks; Write-Host "  Favori « $Name » retiré." }
-        else { Write-Host "  Aucun favori « $Name »." }
+        if ($marks.ContainsKey($Name)) { $marks.Remove($Name); Save-PstMarks $marks; Write-Host (PstText '  Favori « {0} » retiré.' $Name) }
+        else { Write-Host (PstText '  Aucun favori « {0} ».' $Name) }
     }
 }
 if (Test-PstFree 'marks') {
     function global:marks {
         $marks = Get-PstMarks
-        if ($marks.Count -eq 0) { Write-Host '  Aucun favori. Dans un dossier : mark <nom>, puis jump <nom> depuis n''importe où.'; return }
+        if ($marks.Count -eq 0) { Write-Host (PstText '  Aucun favori. Dans un dossier : mark <nom>, puis jump <nom> depuis n''importe où.'); return }
         $width = 0
         foreach ($k in $marks.Keys) { $width = [Math]::Max($width, $k.Length) }
         foreach ($k in ($marks.Keys | Sort-Object)) { Write-Host ('  ' + $k.PadRight($width) + '  ' + $marks[$k]) }
@@ -410,7 +466,7 @@ if (Test-PstFree 'jump') {
         param([string]$Name)
         if (-not $Name) { marks; return }
         if ($Name -eq '-') {
-            if ($global:PstShell.Previous) { $target = $global:PstShell.Previous } else { Write-Host '  Pas de dossier précédent.'; return }
+            if ($global:PstShell.Previous) { $target = $global:PstShell.Previous } else { Write-Host (PstText '  Pas de dossier précédent.'); return }
         }
         else {
             $marks = Get-PstMarks
@@ -420,9 +476,9 @@ if (Test-PstFree 'jump') {
                 $candidates = @($marks.Keys | Where-Object { $_ -like "$Name*" })
                 if ($candidates.Count -eq 1) { $target = $marks[$candidates[0]] }
             }
-            if (-not $target) { Write-Host "  Aucun favori « $Name ». Liste : marks"; return }
+            if (-not $target) { Write-Host (PstText '  Aucun favori « {0} ». Liste : marks' $Name); return }
         }
-        if (-not (Test-Path -LiteralPath $target -PathType Container)) { Write-Host "  Le dossier n'existe plus : $target"; return }
+        if (-not (Test-Path -LiteralPath $target -PathType Container)) { Write-Host (PstText '  Le dossier n''existe plus : {0}' $target); return }
         $global:PstShell.Previous = (Get-Location).ProviderPath
         Set-Location -LiteralPath $target
     }
@@ -443,17 +499,17 @@ if (Test-PstFree 'fix') {
         # Explique la dernière erreur et propose une correction, grâce à « ask ».
         $failure = $global:Error | Select-Object -First 1
         $previous = Get-History -Count 1
-        if (-not $failure -and -not $previous) { Write-Host '  Rien à analyser : aucune commande ni erreur récente.'; return }
+        if (-not $failure -and -not $previous) { Write-Host (PstText '  Rien à analyser : aucune commande ni erreur récente.'); return }
         $report = @()
-        if ($previous) { $report += "Commande : $($previous.CommandLine)" }
+        if ($previous) { $report += (PstText 'Commande : {0}' $previous.CommandLine) }
         if ($failure) {
-            $report += "Erreur : $($failure.ToString())"
+            $report += (PstText 'Erreur : {0}' $failure.ToString())
             if ($failure.InvocationInfo -and $failure.InvocationInfo.PositionMessage) { $report += $failure.InvocationInfo.PositionMessage }
         }
-        if ($global:LASTEXITCODE) { $report += "Code de sortie : $global:LASTEXITCODE" }
+        if ($global:LASTEXITCODE) { $report += (PstText 'Code de sortie : {0}' $global:LASTEXITCODE) }
         $tool = Join-Path (Join-Path $global:PstShell.Root 'tools') 'ask.ps1'
-        $report | & $tool 'Explique pourquoi cette commande a échoué et donne la commande corrigée.'
+        $report | & $tool (PstText 'Explique pourquoi cette commande a échoué et donne la commande corrigée.')
     }
 }
 
-Remove-Variable pstSettings, pstPalettes, pstConfig, pstConfigFile, pstDefaultPrompt -ErrorAction SilentlyContinue
+Remove-Variable pstSettings, pstPalettes, pstConfig, pstConfigFile, pstDefaultPrompt, pstLang -ErrorAction SilentlyContinue

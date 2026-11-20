@@ -102,18 +102,53 @@ $script:PstAiProviders = [ordered]@{
     }
 }
 
+Import-PstStrings 'PsTools.AI'
+
+function Get-PstAiCatalogText {
+    # Traduit à l'affichage un libellé du catalogue (Label, Hint, Note), qui reste
+    # en français dans les données. Chaque texte figure ici en littéral pour que
+    # build/Test-Translations.ps1 vérifie sa traduction ; un texte absent passe tel quel.
+    param([string]$Text)
+    switch -CaseSensitive ($Text) {
+        'recommandé' { return (L 'recommandé') }
+        'offre gratuite disponible' { return (L 'offre gratuite disponible') }
+        'hébergé en Europe' { return (L 'hébergé en Europe') }
+        'réponses quasi instantanées' { return (L 'réponses quasi instantanées') }
+        'très économique' { return (L 'très économique') }
+        'des centaines de modèles, une seule clé' { return (L 'des centaines de modèles, une seule clé') }
+        'local, gratuit, hors ligne' { return (L 'local, gratuit, hors ligne') }
+        'Autre service compatible OpenAI' { return (L 'Autre service compatible OpenAI') }
+        'LM Studio, vLLM, passerelle d''entreprise...' { return (L 'LM Studio, vLLM, passerelle d''entreprise...') }
+        'excellent équilibre' { return (L 'excellent équilibre') }
+        'rapide et économique' { return (L 'rapide et économique') }
+        'le plus rapide' { return (L 'le plus rapide') }
+        'le plus capable' { return (L 'le plus capable') }
+        'équilibré' { return (L 'équilibré') }
+        'rapide' { return (L 'rapide') }
+        'aperçu' { return (L 'aperçu') }
+    }
+    return $Text
+}
+
 function Get-PstAiProvider {
+    # Fiche d'un fournisseur ; Label et Hint sont traduits dans la langue choisie
+    # (copie de la fiche, le catalogue reste intact).
     param([string]$Id)
     if (-not $Id -or -not $script:PstAiProviders.Contains($Id)) { return $null }
-    return $script:PstAiProviders[$Id]
+    $info = $script:PstAiProviders[$Id]
+    if ($script:Pst.Lang -eq 'fr') { return $info }
+    $info = $info.Clone()
+    $info.Label = Get-PstAiCatalogText $info.Label
+    $info.Hint = Get-PstAiCatalogText $info.Hint
+    return $info
 }
 
 function Format-PstMoney {
     # Montant en dollars, avec assez de décimales pour les très petits coûts.
     param([double]$Usd)
-    if ($Usd -eq 0) { return '0 $' }
-    if ([Math]::Abs($Usd) -lt 0.01) { return ('{0:N4} $' -f $Usd) }
-    return ('{0:N2} $' -f $Usd)
+    if ($Usd -eq 0) { return (L '0 $') }
+    if ([Math]::Abs($Usd) -lt 0.01) { return (L '{0:N4} $' $Usd) }
+    return (L '{0:N2} $' $Usd)
 }
 
 function Format-PstTokens {
@@ -132,17 +167,17 @@ function Get-PstAiKey {
     $info = Get-PstAiProvider $Provider
     if ($info -and $info.EnvVar) {
         $fromEnv = [Environment]::GetEnvironmentVariable($info.EnvVar)
-        if ($fromEnv) { return @{ Key = $fromEnv; Source = "variable $($info.EnvVar)" } }
+        if ($fromEnv) { return @{ Key = $fromEnv; Source = (L 'variable {0}' $info.EnvVar) } }
     }
     $stored = Get-PstSecret "ai.$Provider"
-    if ($stored) { return @{ Key = $stored; Source = 'enregistrée (chiffrée pour votre compte)' } }
+    if ($stored) { return @{ Key = $stored; Source = (L 'enregistrée (chiffrée pour votre compte)') } }
     if ($Provider -eq 'anthropic') {
         # Clé de la version 2.1 (ask.json), reprise telle quelle.
         $legacy = Read-PstJsonFile (Join-Path (Get-PstDataDir) 'ask.json')
         if ($legacy -is [hashtable] -and $legacy.Key) {
             try {
                 $secure = ConvertTo-SecureString -String ([string]$legacy.Key) -ErrorAction Stop
-                return @{ Key = (New-Object System.Net.NetworkCredential '', $secure).Password; Source = 'enregistrée (version précédente)' }
+                return @{ Key = (New-Object System.Net.NetworkCredential '', $secure).Password; Source = (L 'enregistrée (version précédente)') }
             }
             catch { $null = $_ }
         }
@@ -308,7 +343,7 @@ function Get-PstAiModels {
     $response = Invoke-PstHttp -Url $url -Headers (Get-PstAiHeaders $Provider $Key) -TimeoutSeconds 20
     $result = @{ Ok = $false; Status = $response.Status; Error = $response.Error; Models = @(); Prices = @{} }
     if ($response.Error) { return $result }
-    try { $data = $response.Body | ConvertFrom-Json } catch { $result.Error = 'réponse illisible'; return $result }
+    try { $data = $response.Body | ConvertFrom-Json } catch { $result.Error = (L 'réponse illisible'); return $result }
     $items = @()
     if ($data.data) { $items = @($data.data) } elseif ($data.models) { $items = @($data.models) } elseif ($data -is [array]) { $items = @($data) }
     $skip = 'embed|tts|whisper|dall-e|image|audio|realtime|moderation|transcri|speech|search|computer-use|sora|rerank|ocr|guard'
@@ -459,18 +494,18 @@ function Get-PstAiErrorHint {
     param($Result, [string]$Provider)
     $info = Get-PstAiProvider $Provider
     switch ($Result.Status) {
-        401 { return 'Clé d''API refusée. Vérifiez-la avec « ask -Setup ».' }
-        403 { return "Accès refusé : $($Result.Error)" }
-        404 { return "Modèle ou adresse introuvable ($($Result.Error)). Choisissez un autre modèle avec « ask -Setup »." }
-        402 { return "Crédit insuffisant sur le compte $($info.Label) : $($Result.Error)" }
-        429 { return 'Limite de requêtes ou de crédit atteinte. Réessayez dans un instant.' }
+        401 { return (L 'Clé d''API refusée. Vérifiez-la avec « ask -Setup ».') }
+        403 { return (L 'Accès refusé : {0}' $Result.Error) }
+        404 { return (L 'Modèle ou adresse introuvable ({0}). Choisissez un autre modèle avec « ask -Setup ».' $Result.Error) }
+        402 { return (L 'Crédit insuffisant sur le compte {0} : {1}' $info.Label $Result.Error) }
+        429 { return (L 'Limite de requêtes ou de crédit atteinte. Réessayez dans un instant.') }
     }
-    if ($Result.Status -ge 500) { return "Le service $($info.Label) est momentanément indisponible ($($Result.Status)). Réessayez dans un instant." }
+    if ($Result.Status -ge 500) { return (L 'Le service {0} est momentanément indisponible ({1}). Réessayez dans un instant.' $info.Label $Result.Status) }
     if ($Result.Status -eq 0) {
-        if ($Provider -eq 'ollama') { return "Ollama ne répond pas ($($Result.Error)). Lancez l'application Ollama ou « ollama serve »." }
-        return "Connexion impossible : $($Result.Error)"
+        if ($Provider -eq 'ollama') { return (L 'Ollama ne répond pas ({0}). Lancez l''application Ollama ou « ollama serve ».' $Result.Error) }
+        return (L 'Connexion impossible : {0}' $Result.Error)
     }
-    return "Requête refusée ($($Result.Status)) : $($Result.Error)"
+    return (L 'Requête refusée ({0}) : {1}' $Result.Status $Result.Error)
 }
 
 # ── Journal de consommation ──────────────────────────────────────────────────
@@ -524,8 +559,8 @@ function Format-PstAiFooter {
     $g = $script:Pst.Glyph
     $approx = ''
     if ($Result.Estimated) { $approx = '~' }
-    $parts = @($Result.Model, ("$approx$(Format-PstTokens $Result.In) $($g.Pointer) $approx$(Format-PstTokens $Result.Out) jetons"))
-    if ($Result.CostKnown) { $parts += Format-PstMoney $Result.Cost } else { $parts += 'prix inconnu' }
+    $parts = @($Result.Model, (L '{0} {1} {2} jetons' "$approx$(Format-PstTokens $Result.In)" $g.Pointer "$approx$(Format-PstTokens $Result.Out)"))
+    if ($Result.CostKnown) { $parts += Format-PstMoney $Result.Cost } else { $parts += (L 'prix inconnu') }
     $parts += ('{0:N1} s' -f ($Result.Ms / 1000))
     $line = Paint ($g.H * 2 + ' ' + ($parts -join " $($g.Dot) ")) 'Dim'
     if ($Budget -gt 0) {
@@ -533,7 +568,7 @@ function Format-PstAiFooter {
         $pct = $month / $Budget * 100
         $color = 'Dim'
         if ($pct -ge 100) { $color = 'Err' } elseif ($pct -ge 80) { $color = 'Warn' }
-        $line += Paint "  $($g.Dot) ce mois : $(Format-PstMoney $month) / $(Format-PstMoney $Budget)" $color
+        $line += Paint ("  $($g.Dot) " + (L 'ce mois : {0} / {1}' (Format-PstMoney $month) (Format-PstMoney $Budget))) $color
     }
     return $line
 }
@@ -543,40 +578,41 @@ function Show-PstAiUsage {
     $settings = Get-PstAiSettings
     $entries = Get-PstAiUsage
     $width = Get-PstWidth -Max 92
-    Show-PstHeader -Tool 'ask' -Subtitle 'consommation'
+    Show-PstHeader -Tool 'ask' -Subtitle (L 'consommation')
     if ($entries.Count -eq 0) {
-        Write-PstStatus info 'Aucune requête enregistrée pour l''instant. Essayez : ask "bonjour"'
+        Write-PstStatus info (L 'Aucune requête enregistrée pour l''instant. Essayez : ask "bonjour"')
         Write-Host ''
         return
     }
     $now = Get-Date
     $monthStart = $now.Date.AddDays(1 - $now.Day)
     $periods = [ordered]@{
-        'Aujourd''hui'      = @($entries | Where-Object { $_.Time -ge $now.Date })
-        '7 derniers jours'  = @($entries | Where-Object { $_.Time -ge $now.Date.AddDays(-6) })
-        'Ce mois-ci'        = @($entries | Where-Object { $_.Time -ge $monthStart })
-        'Depuis le début'   = @($entries)
+        today = @($entries | Where-Object { $_.Time -ge $now.Date })
+        week  = @($entries | Where-Object { $_.Time -ge $now.Date.AddDays(-6) })
+        month = @($entries | Where-Object { $_.Time -ge $monthStart })
+        all   = @($entries)
     }
+    $periodNames = @{ today = (L 'Aujourd''hui'); week = (L '7 derniers jours'); month = (L 'Ce mois-ci'); all = (L 'Depuis le début') }
     $rows = @(); $unknown = $false
     foreach ($name in $periods.Keys) {
         $m = Measure-PstAiUsage $periods[$name]
         if ($m.Unknown) { $unknown = $true }
         $cost = Format-PstMoney $m.Cost
         if ($m.Unknown) { $cost += '*' }
-        $rows += , @($name, [string]$m.Count, (Format-PstTokens $m.In), (Format-PstTokens $m.Out), (Paint $cost 'Title' -Bold))
+        $rows += , @($periodNames[$name], [string]$m.Count, (Format-PstTokens $m.In), (Format-PstTokens $m.Out), (Paint $cost 'Title' -Bold))
     }
     $lines = Format-PstTable -Columns @(
-        @{ Name = 'Période'; Width = 18 }, @{ Name = 'Requêtes'; Width = 9; Right = $true }, @{ Name = 'Entrée'; Width = 9; Right = $true },
-        @{ Name = 'Sortie'; Width = 9; Right = $true }, @{ Name = 'Coût'; Width = 12; Right = $true }
+        @{ Name = (L 'Période'); Width = 18 }, @{ Name = (L 'Requêtes'); Width = 9; Right = $true }, @{ Name = (L 'Entrée'); Width = 9; Right = $true },
+        @{ Name = (L 'Sortie'); Width = 9; Right = $true }, @{ Name = (L 'Coût'); Width = 12; Right = $true }
     ) -Rows $rows
-    $month = Measure-PstAiUsage $periods['Ce mois-ci']
+    $month = Measure-PstAiUsage $periods['month']
     if ($settings.Budget -gt 0) {
         $pct = $month.Cost / $settings.Budget * 100
         $color = Get-PstLevelColor $pct 80 100
         $lines += ''
-        $lines += (Format-PstPad 'Budget mensuel' 18) + (Format-PstBar $pct 24 -Color $color) + ' ' + (Paint ('{0:N0} %' -f $pct) $color -Bold) + (Paint "  $(Format-PstMoney $month.Cost) sur $(Format-PstMoney $settings.Budget)" 'Dim')
+        $lines += (Format-PstPad (L 'Budget mensuel') 18) + (Format-PstBar $pct 24 -Color $color) + ' ' + (Paint (L '{0:N0} %' $pct) $color -Bold) + (Paint ('  ' + (L '{0} sur {1}' (Format-PstMoney $month.Cost) (Format-PstMoney $settings.Budget))) 'Dim')
     }
-    Format-PstBox -Title 'Résumé' -Lines $lines -Width $width | Write-PstLine
+    Format-PstBox -Title (L 'Résumé') -Lines $lines -Width $width | Write-PstLine
 
     # Coût par jour sur 30 jours
     $days = @()
@@ -585,11 +621,11 @@ function Show-PstAiUsage {
         $days += (Measure-PstAiUsage @($entries | Where-Object { $_.Time.Date -eq $day })).Cost
     }
     $peak = ($days | Measure-Object -Maximum).Maximum
-    $spark = (Paint (Format-PstSparkline $days -Width 30) 'Accent') + (Paint "   pic : $(Format-PstMoney $peak) / jour" 'Dim')
-    Format-PstBox -Title 'Coût par jour (30 jours)' -Lines @($spark) -Width $width | Write-PstLine
+    $spark = (Paint (Format-PstSparkline $days -Width 30) 'Accent') + (Paint ('   ' + (L 'pic : {0} / jour' (Format-PstMoney $peak))) 'Dim')
+    Format-PstBox -Title (L 'Coût par jour (30 jours)') -Lines @($spark) -Width $width | Write-PstLine
 
     # Par modèle, ce mois-ci
-    $byModel = @($periods['Ce mois-ci'] | Group-Object { "$($_.Provider)|$($_.Model)" } | ForEach-Object {
+    $byModel = @($periods['month'] | Group-Object { "$($_.Provider)|$($_.Model)" } | ForEach-Object {
             $m = Measure-PstAiUsage $_.Group
             $parts = $_.Name -split '\|', 2
             [pscustomobject]@{ Provider = $parts[0]; Model = $parts[1]; Stats = $m }
@@ -607,13 +643,13 @@ function Show-PstAiUsage {
             if (-not $modelName) { $modelName = '?' }
             $rows += , @((Limit-PstText $modelName $modelWidth), (Paint (Limit-PstText $label 16) 'Dim'), [string]$b.Stats.Count, (Format-PstTokens ($b.Stats.In + $b.Stats.Out)), $cost)
         }
-        Format-PstBox -Title 'Ce mois-ci, par modèle' -Lines (Format-PstTable -Columns @(
-                @{ Name = 'Modèle'; Width = $modelWidth }, @{ Name = 'Fournisseur'; Width = 16 }, @{ Name = 'Req.'; Width = 5; Right = $true },
-                @{ Name = 'Jetons'; Width = 8; Right = $true }, @{ Name = 'Coût'; Width = 11; Right = $true }
+        Format-PstBox -Title (L 'Ce mois-ci, par modèle') -Lines (Format-PstTable -Columns @(
+                @{ Name = (L 'Modèle'); Width = $modelWidth }, @{ Name = (L 'Fournisseur'); Width = 16 }, @{ Name = (L 'Req.'); Width = 5; Right = $true },
+                @{ Name = (L 'Jetons'); Width = 8; Right = $true }, @{ Name = (L 'Coût'); Width = 11; Right = $true }
             ) -Rows $rows) -Width $width | Write-PstLine
     }
-    if ($unknown) { Write-Host (Paint '  * certaines requêtes ont un prix inconnu (non compté) : renseignez-le avec « ask -Setup ».' 'Dim') }
-    Write-Host (Paint "  Coûts calculés avec les tarifs publics relevés le $($script:PstAiPricesDate) ; votre facture fait foi." 'Dim')
+    if ($unknown) { Write-Host (Paint ('  ' + (L '* certaines requêtes ont un prix inconnu (non compté) : renseignez-le avec « ask -Setup ».')) 'Dim') }
+    Write-Host (Paint ('  ' + (L 'Coûts calculés avec les tarifs publics relevés le {0} ; votre facture fait foi.' $script:PstAiPricesDate)) 'Dim')
     Write-Host ''
 }
 
@@ -622,8 +658,12 @@ function Show-PstAiUsage {
 function Invoke-PstAiSetup {
     # Choix du fournisseur, de la clé, du modèle et du budget. N'enregistre rien :
     # retourne les choix (ou $null si l'utilisateur passe) pour Save-PstAiSetup.
-    param([string[]]$Steps = @(), [int]$StepIndex = 0, [string]$Caption = 'assistant IA')
+    param([string[]]$Steps = @(), [int]$StepIndex = 0, [string]$Caption)
     if (-not (Test-PstInteractive)) { return $null }   # la saisie d'une clé demande un terminal
+    if (-not $Caption) {
+        # « Assistant IA » et « assistant IA » partageraient la même clé (insensible à la casse).
+        $Caption = if ($script:Pst.Lang -eq 'fr') { 'assistant IA' } else { L 'Assistant IA' }
+    }
     $g = $script:Pst.Glyph
     $current = Get-PstAiSettings
     $frame = {
@@ -632,22 +672,22 @@ function Invoke-PstAiSetup {
     }
 
     # 1. Fournisseur
-    & $frame 'Assistant IA' 'La commande « ask », le raccourci Alt+A et « fix » utilisent l''IA de votre choix. Vous fournissez votre propre clé d''API : la consommation (jetons et coût) est suivie à chaque requête. Aucun envoi n''a lieu sans que vous lanciez une commande.'
+    & $frame (L 'Assistant IA') (L 'La commande « ask », le raccourci Alt+A et « fix » utilisent l''IA de votre choix. Vous fournissez votre propre clé d''API : la consommation (jetons et coût) est suivie à chaque requête. Aucun envoi n''a lieu sans que vous lanciez une commande.')
     $ids = @($script:PstAiProviders.Keys)
-    $labels = @($ids | ForEach-Object { $script:PstAiProviders[$_].Label }) + @('Configurer plus tard')
+    $labels = @($ids | ForEach-Object { (Get-PstAiProvider $_).Label }) + @((L 'Configurer plus tard'))
     $hints = @($ids | ForEach-Object {
-            $p = $script:PstAiProviders[$_]
+            $p = Get-PstAiProvider $_
             $h = $p.Hint
             $k = Get-PstAiKey $_
-            if ($k.Key) { if ($h) { $h += ' · ' }; $h += 'clé trouvée' }
+            if ($k.Key) { if ($h) { $h += ' · ' }; $h += (L 'clé trouvée') }
             $h
-        }) + @('« pst setup » à tout moment')
+        }) + @((L '« pst setup » à tout moment'))
     $default = [Math]::Max(0, [array]::IndexOf($ids, $current.Provider))
-    $pick = Read-PstChoice -Title 'Quel fournisseur d''IA ?' -Items $labels -Hints $hints -Default $default
+    $pick = Read-PstChoice -Title (L 'Quel fournisseur d''IA ?') -Items $labels -Hints $hints -Default $default
     if ($pick -lt 0) { return 'back' }
     if ($pick -ge $ids.Count) { return $null }
     $providerId = $ids[$pick]
-    $provider = $script:PstAiProviders[$providerId]
+    $provider = Get-PstAiProvider $providerId
     $choice = @{ Provider = $providerId; Key = $null; KeyChanged = $false; BaseUrl = ''; Model = ''; Budget = $current.Budget; Price = $null; LivePrices = $null }
 
     # 2. Adresse (services locaux ou compatibles)
@@ -656,7 +696,7 @@ function Invoke-PstAiSetup {
         $defaultUrl = $provider.BaseUrl
         if (-not $defaultUrl) { $defaultUrl = 'http://localhost:1234/v1' }
         if ($current.Provider -eq $providerId -and $current.BaseUrl) { $defaultUrl = $current.BaseUrl }
-        $choice.BaseUrl = Read-PstText -Prompt 'Adresse de l''API (se termine en général par /v1)' -Default $defaultUrl -Validate { param($v) $v -match '^https?://' } -ErrorMessage 'Adresse attendue, par exemple http://localhost:1234/v1'
+        $choice.BaseUrl = Read-PstText -Prompt (L 'Adresse de l''API (se termine en général par /v1)') -Default $defaultUrl -Validate { param($v) $v -match '^https?://' } -ErrorMessage (L 'Adresse attendue, par exemple http://localhost:1234/v1')
     }
     $baseUrl = $provider.BaseUrl
     if ($choice.BaseUrl) { $baseUrl = $choice.BaseUrl }
@@ -668,17 +708,17 @@ function Invoke-PstAiSetup {
         Write-Host ''
         $askKey = $true
         if ($existing.Key) {
-            $keep = Read-PstChoice -Title "Une clé $($provider.Label) est déjà disponible ($($existing.Source))." -Items @('L''utiliser', 'En saisir une autre')
+            $keep = Read-PstChoice -Title (L 'Une clé {0} est déjà disponible ({1}).' $provider.Label $existing.Source) -Items @((L 'L''utiliser'), (L 'En saisir une autre'))
             if ($keep -lt 0) { return 'back' }
             $askKey = ($keep -eq 1)
         }
         while ($askKey) {
-            if ($provider.KeyUrl) { Write-PstStatus info "Créez une clé sur $($provider.KeyUrl)" }
-            $label = 'Collez votre clé d''API (saisie masquée)'
-            if (-not $provider.KeyRequired) { $label = 'Clé d''API (Entrée si le service n''en demande pas)' }
+            if ($provider.KeyUrl) { Write-PstStatus info (L 'Créez une clé sur {0}' $provider.KeyUrl) }
+            $label = L 'Collez votre clé d''API (saisie masquée)'
+            if (-not $provider.KeyRequired) { $label = L 'Clé d''API (Entrée si le service n''en demande pas)' }
             $typed = Read-PstText -Prompt $label -Secret
             if (-not $typed -and $provider.KeyRequired) {
-                $retry = Read-PstChoice -Title 'Aucune clé saisie.' -Items @('Réessayer', 'Revenir au choix du fournisseur')
+                $retry = Read-PstChoice -Title (L 'Aucune clé saisie.') -Items @((L 'Réessayer'), (L 'Revenir au choix du fournisseur'))
                 if ($retry -ne 0) { return 'back' }
                 continue
             }
@@ -689,21 +729,21 @@ function Invoke-PstAiSetup {
 
     # 4. Vérification et modèles disponibles
     Write-Host ''
-    $live = Show-PstSpinner 'Vérification auprès du service' { Get-PstAiModels -Provider $providerId -Key $key -BaseUrl $baseUrl }
+    $live = Show-PstSpinner (L 'Vérification auprès du service') { Get-PstAiModels -Provider $providerId -Key $key -BaseUrl $baseUrl }
     if ($live.Ok) {
-        Write-PstStatus ok "Connexion réussie $($g.Dot) $($live.Models.Count) modèle(s) disponible(s)"
+        Write-PstStatus ok (L 'Connexion réussie {0} {1} modèle(s) disponible(s)' $g.Dot $live.Models.Count)
         if ($live.Prices.Count) { $choice.LivePrices = $live.Prices }
     }
     elseif ($live.Status -eq 401 -or $live.Status -eq 403) {
-        Write-PstStatus err "Clé refusée par $($provider.Label)."
-        $next = Read-PstChoice -Title 'Que faire ?' -Items @('Saisir une autre clé', 'La garder quand même', 'Revenir au choix du fournisseur')
+        Write-PstStatus err (L 'Clé refusée par {0}.' $provider.Label)
+        $next = Read-PstChoice -Title (L 'Que faire ?') -Items @((L 'Saisir une autre clé'), (L 'La garder quand même'), (L 'Revenir au choix du fournisseur'))
         if ($next -eq 0) { return (Invoke-PstAiSetup -Steps $Steps -StepIndex $StepIndex -Caption $Caption) }
         if ($next -ne 1) { return 'back' }
     }
     else {
         $why = $live.Error
-        if ($providerId -eq 'ollama' -and $live.Status -eq 0) { $why = 'Ollama ne répond pas : lancez l''application Ollama' }
-        Write-PstStatus warn "Vérification impossible ($why). La configuration sera tout de même enregistrée."
+        if ($providerId -eq 'ollama' -and $live.Status -eq 0) { $why = L 'Ollama ne répond pas : lancez l''application Ollama' }
+        Write-PstStatus warn (L 'Vérification impossible ({0}). La configuration sera tout de même enregistrée.' $why)
     }
 
     # 5. Modèle
@@ -713,10 +753,10 @@ function Invoke-PstAiSetup {
         if ($m.Hidden) { continue }
         $models += $m.Id; $modelLabels += $m.Id
         $price = Get-PstAiPrice $providerId $m.Id
-        $hint = ('{0} / {1} par M jetons' -f (Format-PstMoney $price.In), (Format-PstMoney $price.Out))
-        if ($m.Note) { $hint = "$($m.Note) $($g.Dot) $hint" }
-        if ($m.Id -eq $provider.Default) { $hint = "recommandé $($g.Dot) $hint" }
-        if ($live.Ok -and $live.Models.Count -and $live.Models -notcontains $m.Id) { $hint += " $($g.Dot) absent de votre compte" }
+        $hint = L '{0} / {1} par M jetons' (Format-PstMoney $price.In) (Format-PstMoney $price.Out)
+        if ($m.Note) { $hint = "$(Get-PstAiCatalogText $m.Note) $($g.Dot) $hint" }
+        if ($m.Id -eq $provider.Default) { $hint = "$(L 'recommandé') $($g.Dot) $hint" }
+        if ($live.Ok -and $live.Models.Count -and $live.Models -notcontains $m.Id) { $hint += " $($g.Dot) $(L 'absent de votre compte')" }
         $modelHints += $hint
     }
     $extra = @($live.Models | Where-Object { $models -notcontains $_ })
@@ -728,32 +768,32 @@ function Invoke-PstAiSetup {
     $limit = 25
     foreach ($id in ($extra | Select-Object -First $limit)) {
         $models += $id; $modelLabels += $id
-        if ($live.Prices[$id]) { $modelHints += ('{0} / {1} par M jetons' -f (Format-PstMoney $live.Prices[$id].in), (Format-PstMoney $live.Prices[$id].out)) }
-        elseif ($provider.Free) { $modelHints += 'gratuit (local)' }
-        else { $modelHints += 'prix non référencé' }
+        if ($live.Prices[$id]) { $modelHints += (L '{0} / {1} par M jetons' (Format-PstMoney $live.Prices[$id].in) (Format-PstMoney $live.Prices[$id].out)) }
+        elseif ($provider.Free) { $modelHints += (L 'gratuit (local)') }
+        else { $modelHints += (L 'prix non référencé') }
     }
-    $modelLabels += 'Saisir un autre identifiant...'
-    $modelHints += $(if ($extra.Count -gt $limit) { "$($extra.Count - $limit) autre(s) modèle(s) disponibles" } else { '' })
+    $modelLabels += (L 'Saisir un autre identifiant...')
+    $modelHints += $(if ($extra.Count -gt $limit) { L '{0} autre(s) modèle(s) disponibles' ($extra.Count - $limit) } else { '' })
     $defaultModel = $provider.Default
     if ($current.Provider -eq $providerId -and $current.Model) { $defaultModel = $current.Model }
     $index = [Math]::Max(0, [array]::IndexOf($models, $defaultModel))
     if ($models.Count -eq 0) { $index = 0 }
-    $pickModel = Read-PstChoice -Title 'Quel modèle utiliser par défaut ?' -Items $modelLabels -Hints $modelHints -Default $index
+    $pickModel = Read-PstChoice -Title (L 'Quel modèle utiliser par défaut ?') -Items $modelLabels -Hints $modelHints -Default $index
     if ($pickModel -lt 0) { return 'back' }
     if ($pickModel -lt $models.Count) { $choice.Model = $models[$pickModel] }
     else {
-        $choice.Model = Read-PstText -Prompt 'Identifiant du modèle' -Default $defaultModel -Validate { param($v) [bool]$v } -ErrorMessage 'Identifiant requis.'
+        $choice.Model = Read-PstText -Prompt (L 'Identifiant du modèle') -Default $defaultModel -Validate { param($v) [bool]$v } -ErrorMessage (L 'Identifiant requis.')
     }
 
     # 6. Prix d'un modèle non référencé
     $price = Get-PstAiPrice $providerId $choice.Model
     if (-not $price.Known -and -not ($choice.LivePrices -and $choice.LivePrices[$choice.Model])) {
         Write-Host ''
-        Write-PstStatus info 'Prix inconnu pour ce modèle : indiquez-le pour suivre le coût (Entrée pour passer).'
+        Write-PstStatus info (L 'Prix inconnu pour ce modèle : indiquez-le pour suivre le coût (Entrée pour passer).')
         $number = { param($v) (-not $v) -or ($v -replace ',', '.') -match '^\d+(\.\d+)?$' }
-        $in = Read-PstText -Prompt 'Prix entrée, en $ par million de jetons' -Validate $number -ErrorMessage 'Nombre attendu, par exemple 2.5'
+        $in = Read-PstText -Prompt (L 'Prix entrée, en $ par million de jetons') -Validate $number -ErrorMessage (L 'Nombre attendu, par exemple 2.5')
         if ($in) {
-            $out = Read-PstText -Prompt 'Prix sortie, en $ par million de jetons' -Validate $number -ErrorMessage 'Nombre attendu, par exemple 10'
+            $out = Read-PstText -Prompt (L 'Prix sortie, en $ par million de jetons') -Validate $number -ErrorMessage (L 'Nombre attendu, par exemple 10')
             if ($out) { $choice.Price = @{ in = [double]($in -replace ',', '.'); out = [double]($out -replace ',', '.') } }
         }
     }
@@ -763,7 +803,7 @@ function Invoke-PstAiSetup {
         Write-Host ''
         $budgetDefault = ''
         if ($current.Budget -gt 0) { $budgetDefault = [string]$current.Budget }
-        $budget = Read-PstText -Prompt 'Budget mensuel en $ (alerte quand il approche ; Entrée = aucun, 0 = retirer)' -Default $budgetDefault -Validate { param($v) (-not $v) -or ($v -replace ',', '.') -match '^\d+(\.\d+)?$' } -ErrorMessage 'Montant attendu, par exemple 10'
+        $budget = Read-PstText -Prompt (L 'Budget mensuel en $ (alerte quand il approche ; Entrée = aucun, 0 = retirer)') -Default $budgetDefault -Validate { param($v) (-not $v) -or ($v -replace ',', '.') -match '^\d+(\.\d+)?$' } -ErrorMessage (L 'Montant attendu, par exemple 10')
         if ($budget) { $choice.Budget = [double]($budget -replace ',', '.') }
     }
     return $choice
@@ -789,9 +829,9 @@ function Test-PstAiSetup {
     $settings = Get-PstAiSettings
     $key = (Get-PstAiKey $settings.Provider).Key
     Write-Host ''
-    Write-Host ('  ' + (Paint 'Test : ' 'Dim')) -NoNewline
+    Write-Host ('  ' + (Paint (L 'Test : ') 'Dim')) -NoNewline
     $result = Invoke-PstAiRequest -Provider $settings.Provider -Model $settings.Model -Key $key -BaseUrl $settings.BaseUrl -Effort 'low' `
-        -System 'Réponds en une phrase courte, en français.' -User 'Présente-toi en une phrase et dis que la configuration fonctionne.' `
+        -System (L 'Réponds en une phrase courte, en français.') -User (L 'Présente-toi en une phrase et dis que la configuration fonctionne.') `
         -OnText { param($t) Write-Host $t -NoNewline }
     Write-Host ''
     if ($result.Error) { Write-PstStatus err (Get-PstAiErrorHint $result $settings.Provider); return $false }

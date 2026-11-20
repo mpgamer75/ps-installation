@@ -19,18 +19,19 @@ param(
 
 $appRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path (Join-Path $appRoot 'lib') 'PsTools.ps1')
+Import-PstStrings 'pst-uninstall'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'pst-uninstall' -Synopsis 'Désinstalle ps-tools de cette machine.' `
+    Show-PstHelp -Name 'pst-uninstall' -Synopsis (L 'Désinstalle ps-tools de cette machine.') `
         -Usage @('pst-uninstall [-Yes] [-Purge]') `
         -Options @(
-            @('-Yes', 'Ne pose aucune question (les données sont conservées, sauf avec -Purge)'),
-            @('-Purge', 'Supprime aussi vos données : rappels, favoris, clé et réglages de « ask »')
+            @('-Yes', (L 'Ne pose aucune question (les données sont conservées, sauf avec -Purge)')),
+            @('-Purge', (L 'Supprime aussi vos données : rappels, favoris, clé et réglages de « ask »'))
         ) `
         -Examples @('pst-uninstall', 'pst-uninstall -Yes', 'pst-uninstall -Yes -Purge') `
         -Notes @(
-            'Retiré : commandes, entrée du PATH, intégration au shell, rappels planifiés.',
-            'Équivalent : pst uninstall. Sans ps-tools sous la main :',
+            (L 'Retiré : commandes, entrée du PATH, intégration au shell, rappels planifiés.'),
+            (L 'Équivalent : pst uninstall. Sans ps-tools sous la main :'),
             '  irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/uninstall.ps1 | iex'
         )
     exit 0
@@ -39,14 +40,14 @@ if ($Help -or (Test-PstHelpArg $Rest)) {
 $setup = Join-Path $appRoot 'setup.ps1'
 $infoFile = Join-Path $appRoot 'install.json'
 if (-not (Test-Path -LiteralPath $infoFile) -or -not (Test-Path -LiteralPath $setup)) {
-    Write-PstStatus info 'Cette copie s''exécute depuis le dépôt : rien n''est installé ici.'
-    Write-PstStatus info 'Pour retirer une installation existante : .\uninstall.ps1'
+    Write-PstStatus info (L 'Cette copie s''exécute depuis le dépôt : rien n''est installé ici.')
+    Write-PstStatus info (L 'Pour retirer une installation existante : .\uninstall.ps1')
     exit 0
 }
 
 $info = $null
 try { $info = Get-Content -LiteralPath $infoFile -Raw -Encoding UTF8 | ConvertFrom-Json }
-catch { Write-PstStatus err "Fichier d'installation illisible : $infoFile"; exit 1 }
+catch { Write-PstStatus err (L 'Fichier d''installation illisible : {0}' $infoFile); exit 1 }
 
 # -Deferred : les fichiers en cours d'exécution sont supprimés par un processus
 # détaché, juste après la fin de cette commande.

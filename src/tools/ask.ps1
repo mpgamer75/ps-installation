@@ -30,34 +30,35 @@ $piped = @($input)
 $libDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'lib'
 . (Join-Path $libDir 'PsTools.ps1')
 . (Join-Path $libDir 'PsTools.AI.ps1')
+Import-PstStrings 'ask'
 $g = $script:Pst.Glyph
 
 if ($Help -or (Test-PstHelpArg $Prompt)) {
-    Show-PstHelp -Name 'ask' -Synopsis 'Posez une question à l''IA de votre choix sans quitter le terminal.' `
+    Show-PstHelp -Name 'ask' -Synopsis (L 'Posez une question à l''IA de votre choix sans quitter le terminal.') `
         -Usage @(
-            'ask <question>                  réponse affichée au fil de l''eau',
-            'ask -Cmd <ce que vous voulez>   propose une commande PowerShell, à exécuter ou copier',
-            '<commande> | ask <question>     analyse une sortie, un journal, un fichier',
-            'ask -Usage                      jetons consommés, coût, budget',
-            'ask -Setup                      fournisseur, clé d''API, modèle, budget'
+            (L 'ask <question>                  réponse affichée au fil de l''eau'),
+            (L 'ask -Cmd <ce que vous voulez>   propose une commande PowerShell, à exécuter ou copier'),
+            (L '<commande> | ask <question>     analyse une sortie, un journal, un fichier'),
+            (L 'ask -Usage                      jetons consommés, coût, budget'),
+            (L 'ask -Setup                      fournisseur, clé d''API, modèle, budget')
         ) `
         -Options @(
-            @('-Cmd', 'Demande une commande prête à l''emploi (confirmation avant exécution)'),
-            @('-Raw', 'Avec -Cmd : affiche seulement la commande (scripts, raccourci Alt+A)'),
-            @('-Provider <id>', 'Fournisseur pour cette question : anthropic, openai, gemini, mistral, groq, deepseek, xai, openrouter, ollama, custom'),
-            @('-Model <id>', 'Modèle pour cette question'),
-            @('-Effort <niveau>', 'Réflexion : low (défaut, rapide), medium, high, xhigh, max'),
-            @('-Usage', 'Tableau de bord de consommation'),
-            @('-Status', 'Configuration actuelle'),
-            @('-Setup', 'Configuration guidée')
+            @('-Cmd', (L 'Demande une commande prête à l''emploi (confirmation avant exécution)')),
+            @('-Raw', (L 'Avec -Cmd : affiche seulement la commande (scripts, raccourci Alt+A)')),
+            @('-Provider <id>', (L 'Fournisseur pour cette question : anthropic, openai, gemini, mistral, groq, deepseek, xai, openrouter, ollama, custom')),
+            @('-Model <id>', (L 'Modèle pour cette question')),
+            @((L '-Effort <niveau>'), (L 'Réflexion : low (défaut, rapide), medium, high, xhigh, max')),
+            @('-Usage', (L 'Tableau de bord de consommation')),
+            @('-Status', (L 'Configuration actuelle')),
+            @('-Setup', (L 'Configuration guidée'))
         ) `
         -Examples @(
-            'ask "différence entre Get-ChildItem -Recurse et -Depth ?"',
-            'ask -Cmd "les 10 plus gros fichiers de ce dossier"',
-            'Get-Content .\erreur.log -Tail 80 | ask "que s''est-il passé ?"',
-            'git diff | ask -Provider openai "rédige un message de commit"'
+            (L 'ask "différence entre Get-ChildItem -Recurse et -Depth ?"'),
+            (L 'ask -Cmd "les 10 plus gros fichiers de ce dossier"'),
+            (L 'Get-Content .\erreur.log -Tail 80 | ask "que s''est-il passé ?"'),
+            (L 'git diff | ask -Provider openai "rédige un message de commit"')
         ) `
-        -Notes @('Avec l''intégration au shell : Alt+A transforme la ligne tapée en commande, « fix » explique la dernière erreur.')
+        -Notes @((L 'Avec l''intégration au shell : Alt+A transforme la ligne tapée en commande, « fix » explique la dernière erreur.'))
     exit 0
 }
 
@@ -65,14 +66,14 @@ if ($Usage) { Show-PstAiUsage; exit 0 }
 
 if ($Setup) {
     . (Join-Path $libDir 'PsTools.Wizard.ps1')
-    if (-not (Test-PstInteractive)) { Write-PstStatus err 'La configuration demande un terminal interactif.'; exit 1 }
+    if (-not (Test-PstInteractive)) { Write-PstStatus err (L 'La configuration demande un terminal interactif.'); exit 1 }
     Invoke-PstSetupMenu -AppRoot (Split-Path -Parent $PSScriptRoot) -Section 'ai'
     exit 0
 }
 
 $settings = Get-PstAiSettings
 if ($Provider) {
-    if (-not (Get-PstAiProvider $Provider)) { Write-PstStatus err "Fournisseur inconnu : « $Provider » $($g.Dot) voir « ask -Help »"; exit 1 }
+    if (-not (Get-PstAiProvider $Provider)) { Write-PstStatus err (L 'Fournisseur inconnu : « {0} » {1} voir « ask -Help »' $Provider $g.Dot); exit 1 }
     if ($Provider -ne $settings.Provider) {
         $settings.Provider = $Provider
         $settings.Model = (Get-PstAiProvider $Provider).Default
@@ -86,24 +87,24 @@ $providerInfo = Get-PstAiProvider $settings.Provider
 $key = Get-PstAiKey $settings.Provider
 
 if ($Status) {
-    Show-PstHeader -Tool 'ask' -Subtitle 'configuration'
+    Show-PstHeader -Tool 'ask' -Subtitle (L 'configuration')
     $keyText = $key.Source
-    if (-not $key.Key) { $keyText = if ($providerInfo.KeyRequired) { Paint 'aucune (ask -Setup)' 'Warn' } else { 'non requise' } }
+    if (-not $key.Key) { $keyText = if ($providerInfo.KeyRequired) { Paint (L 'aucune (ask -Setup)') 'Warn' } else { L 'non requise' } }
     $price = Get-PstAiPrice $settings.Provider $settings.Model
-    $priceText = 'inconnu'
-    if ($price.Free) { $priceText = 'gratuit (local)' }
-    elseif ($price.Known) { $priceText = '{0} / {1} par million de jetons (entrée / sortie)' -f (Format-PstMoney $price.In), (Format-PstMoney $price.Out) }
-    $budgetText = 'aucun'
-    if ($settings.Budget -gt 0) { $budgetText = "$(Format-PstMoney (Get-PstAiMonthCost)) utilisés sur $(Format-PstMoney $settings.Budget) ce mois-ci" }
+    $priceText = L 'inconnu'
+    if ($price.Free) { $priceText = L 'gratuit (local)' }
+    elseif ($price.Known) { $priceText = L '{0} / {1} par million de jetons (entrée / sortie)' (Format-PstMoney $price.In) (Format-PstMoney $price.Out) }
+    $budgetText = L 'aucun'
+    if ($settings.Budget -gt 0) { $budgetText = L '{0} utilisés sur {1} ce mois-ci' (Format-PstMoney (Get-PstAiMonthCost)) (Format-PstMoney $settings.Budget) }
     $lines = @(
-        ((Paint (Format-PstPad 'Fournisseur' 13) 'Accent') + $providerInfo.Label),
-        ((Paint (Format-PstPad 'Modèle' 13) 'Accent') + $settings.Model),
-        ((Paint (Format-PstPad 'Clé' 13) 'Accent') + $keyText),
-        ((Paint (Format-PstPad 'Tarif' 13) 'Accent') + $priceText),
-        ((Paint (Format-PstPad 'Budget' 13) 'Accent') + $budgetText),
-        ((Paint (Format-PstPad 'Réflexion' 13) 'Accent') + $settings.Effort)
+        ((Paint (Format-PstPad (L 'Fournisseur') 13) 'Accent') + $providerInfo.Label),
+        ((Paint (Format-PstPad (L 'Modèle') 13) 'Accent') + $settings.Model),
+        ((Paint (Format-PstPad (L 'Clé') 13) 'Accent') + $keyText),
+        ((Paint (Format-PstPad (L 'Tarif') 13) 'Accent') + $priceText),
+        ((Paint (Format-PstPad (L 'Budget') 13) 'Accent') + $budgetText),
+        ((Paint (Format-PstPad (L 'Réflexion') 13) 'Accent') + $settings.Effort)
     )
-    if ($providerInfo.Custom -or $settings.Provider -eq 'ollama') { $lines += (Paint (Format-PstPad 'Adresse' 13) 'Accent') + $settings.BaseUrl }
+    if ($providerInfo.Custom -or $settings.Provider -eq 'ollama') { $lines += (Paint (Format-PstPad (L 'Adresse') 13) 'Accent') + $settings.BaseUrl }
     Format-PstBox -Lines $lines | Write-PstLine
     Write-Host ''
     exit 0
@@ -114,24 +115,23 @@ if ($Status) {
 $question = (@($Prompt) -join ' ').Trim()
 $context = (@($piped | ForEach-Object { [string]$_ }) -join "`n").Trim()
 if (-not $question -and -not $context) {
-    Write-PstStatus err 'Posez une question : ask "comment faire ... ?"  (aide : ask -Help)'
+    Write-PstStatus err (L 'Posez une question : ask "comment faire ... ?"  (aide : ask -Help)')
     exit 1
 }
 $maxContext = 400000
 if ($context.Length -gt $maxContext) {
-    Write-PstStatus err ("Le texte reçu par le pipeline est trop long ({0:N0} caractères, maximum {1:N0})." -f $context.Length, $maxContext)
-    Write-PstStatus info 'Réduisez-le avant de l''envoyer, par exemple : ... | Select-Object -Last 500 | ask "..."'
+    Write-PstStatus err (L 'Le texte reçu par le pipeline est trop long ({0:N0} caractères, maximum {1:N0}).' $context.Length $maxContext)
+    Write-PstStatus info (L 'Réduisez-le avant de l''envoyer, par exemple : ... | Select-Object -Last 500 | ask "..."')
     exit 1
 }
 if (-not $key.Key -and $providerInfo.KeyRequired) {
-    Write-PstStatus err "Aucune clé d'API $($providerInfo.Label) configurée."
-    $hint = 'Lancez « ask -Setup » (ou « pst setup »)'
-    if ($providerInfo.EnvVar) { $hint += ", ou définissez la variable $($providerInfo.EnvVar)" }
-    Write-PstStatus info "$hint."
+    Write-PstStatus err (L 'Aucune clé d''API {0} configurée.' $providerInfo.Label)
+    if ($providerInfo.EnvVar) { Write-PstStatus info (L 'Lancez « ask -Setup » (ou « pst setup »), ou définissez la variable {0}.' $providerInfo.EnvVar) }
+    else { Write-PstStatus info (L 'Lancez « ask -Setup » (ou « pst setup »).') }
     exit 1
 }
-if (-not $settings.BaseUrl) { Write-PstStatus err 'Adresse du service non configurée : lancez « ask -Setup ».'; exit 1 }
-if (-not $settings.Model) { Write-PstStatus err "Aucun modèle choisi pour $($providerInfo.Label) : ask -Model <identifiant>, ou « ask -Setup »."; exit 1 }
+if (-not $settings.BaseUrl) { Write-PstStatus err (L 'Adresse du service non configurée : lancez « ask -Setup ».'); exit 1 }
+if (-not $settings.Model) { Write-PstStatus err (L 'Aucun modèle choisi pour {0} : ask -Model <identifiant>, ou « ask -Setup ».' $providerInfo.Label); exit 1 }
 
 $osName = 'Windows'
 if (-not $script:Pst.IsWindows) { $osName = [string][Environment]::OSVersion.Platform }
@@ -149,10 +149,25 @@ Tes réponses s'affichent telles quelles dans une console : écris du texte brut
 if ($Cmd) {
     $system += "`n`nL'utilisateur veut une commande à exécuter. Réponds uniquement par la commande PowerShell, sur une seule ligne, sans explication, sans balise de code et sans guillemets autour. Elle doit fonctionner telle quelle dans l'environnement décrit. Si la demande est impossible ou ambiguë au point de ne pas pouvoir choisir, réponds par une ligne commençant par « # » qui explique pourquoi."
 }
+if ($script:Pst.Lang -eq 'en') {
+    # Consigne en anglais pour l'interface anglaise ; le modèle répond toujours dans la langue de la question.
+    $rights = 'standard user (no administrator rights)'
+    if (Test-PstAdmin) { $rights = 'administrator' }
+    $system = @"
+You are the assistant built into the user's terminal, through the "ask" command of ps-tools.
+
+Environment: $osName, PowerShell $($PSVersionTable.PSVersion), current folder "$((Get-Location).Path)", $rights session.
+
+Your answers are printed as-is in a console: write plain text, short and direct, without Markdown headings or tables. Put commands on their own line, indented by four spaces, so they are easy to copy. Prefer PowerShell and the tools available on Windows; if a command needs administrator rights or changes the system in a way that is hard to undo, say so in one sentence. Answer in the language of the question.
+"@
+    if ($Cmd) {
+        $system += "`n`nThe user wants a command to run. Reply with the PowerShell command only, on a single line, with no explanation, no code fence and no quotes around it. It must work as-is in the environment described. If the request is impossible or too ambiguous to choose, reply with a single line starting with `"#`" that explains why."
+    }
+}
 
 $userText = $question
 if ($context) {
-    if (-not $question) { $question = 'Analyse ce texte et dis-moi l''essentiel.' }
+    if (-not $question) { $question = L 'Analyse ce texte et dis-moi l''essentiel.' }
     $userText = "$question`n`n<entree>`n$context`n</entree>"
 }
 
@@ -162,7 +177,7 @@ $live = -not $Cmd
 $script:waiting = $false
 if (-not $Raw) { Show-PstHeader -Tool 'ask' -Subtitle "$($providerInfo.Label) $($g.Dot) $($settings.Model)" }
 if ($script:Pst.Ansi -and -not $Raw) {
-    Write-Host ("  " + (Paint "$($g.Info) Réflexion en cours..." 'Dim')) -NoNewline
+    Write-Host ("  " + (Paint "$($g.Info) $(L 'Réflexion en cours...')" 'Dim')) -NoNewline
     $script:waiting = $true
 }
 $onText = $null
@@ -189,16 +204,16 @@ Add-PstAiUsage $answer $source
 
 if ($answer.StopReason -eq 'refusal') {
     if ($live -and $answer.Text) { Write-Host '' }
-    Write-PstStatus warn 'Le modèle a décliné cette demande.'
+    Write-PstStatus warn (L 'Le modèle a décliné cette demande.')
     exit 1
 }
 
 if (-not $Cmd) {
     Write-Host ''
-    if ($answer.StopReason -eq 'max_tokens') { Write-PstStatus warn 'Réponse interrompue : longueur maximale atteinte.' }
+    if ($answer.StopReason -eq 'max_tokens') { Write-PstStatus warn (L 'Réponse interrompue : longueur maximale atteinte.') }
     Write-Host ''
     Write-Host ('  ' + (Format-PstAiFooter $answer $settings.Budget))
-    if ($settings.Budget -gt 0 -and (Get-PstAiMonthCost) -ge $settings.Budget) { Write-PstStatus warn 'Budget mensuel dépassé (ask -Usage pour le détail).' }
+    if ($settings.Budget -gt 0 -and (Get-PstAiMonthCost) -ge $settings.Budget) { Write-PstStatus warn (L 'Budget mensuel dépassé (ask -Usage pour le détail).') }
     Write-Host ''
     exit 0
 }
@@ -210,15 +225,15 @@ $command = ($command -replace '^```[a-zA-Z]*\s*', '' -replace '\s*```$', '').Tri
 $command = (@($command -split "`r?`n" | Where-Object { $_.Trim() }) -join '; ')
 if ($Raw) { Write-Output $command; exit 0 }
 
-if (-not $command) { Write-PstStatus warn 'Aucune commande proposée.'; exit 1 }
+if (-not $command) { Write-PstStatus warn (L 'Aucune commande proposée.'); exit 1 }
 if ($command.StartsWith('#')) { Write-PstStatus warn $command.TrimStart('#').Trim(); Write-Host ''; exit 1 }
 
-Format-PstBox -Title 'Commande proposée' -Lines @(Paint $command 'Ok' -Bold) -Color 'Accent' | Write-PstLine
+Format-PstBox -Title (L 'Commande proposée') -Lines @(Paint $command 'Ok' -Bold) -Color 'Accent' | Write-PstLine
 Write-Host ('  ' + (Format-PstAiFooter $answer $settings.Budget))
 Write-Host ''
 if (-not (Test-PstInteractive)) { exit 0 }
 
-$choice = Read-PstChoice -Title 'Que faire ?' -Items @('Exécuter', 'Copier dans le presse-papiers', 'Annuler') -Default 2
+$choice = Read-PstChoice -Title (L 'Que faire ?') -Items @((L 'Exécuter'), (L 'Copier dans le presse-papiers'), (L 'Annuler')) -Default 2
 Write-Host ''
 switch ($choice) {
     0 {
@@ -228,9 +243,9 @@ switch ($choice) {
         catch { Write-PstStatus err $_.Exception.Message; exit 1 }
     }
     1 {
-        try { Set-Clipboard -Value $command; Write-PstStatus ok 'Copiée : collez-la avec Ctrl+V.' }
-        catch { Write-PstStatus warn "Presse-papiers indisponible : $($_.Exception.Message)" }
+        try { Set-Clipboard -Value $command; Write-PstStatus ok (L 'Copiée : collez-la avec Ctrl+V.') }
+        catch { Write-PstStatus warn (L 'Presse-papiers indisponible : {0}' $_.Exception.Message) }
     }
-    default { Write-PstStatus info 'Annulé.' }
+    default { Write-PstStatus info (L 'Annulé.') }
 }
 Write-Host ''

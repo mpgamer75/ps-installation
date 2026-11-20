@@ -17,22 +17,23 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'logtail'
 
 if ($Help -or -not $Path -or (Test-PstHelpArg (@($Path) + @($Rest)))) {
-    Show-PstHelp -Name 'logtail' -Synopsis 'Affiche la fin d''un journal et suit les nouvelles lignes.' `
-        -Usage @('logtail <fichier> [-Lines <n>] [-Filter <regex>] [-Exclude <regex>] [-NoFollow]') `
+    Show-PstHelp -Name 'logtail' -Synopsis (L 'Affiche la fin d''un journal et suit les nouvelles lignes.') `
+        -Usage @(L 'logtail <fichier> [-Lines <n>] [-Filter <regex>] [-Exclude <regex>] [-NoFollow]') `
         -Options @(
-            @('-Lines <n>', 'Nombre de lignes initiales (défaut : 20)'),
-            @('-Filter <regex>', 'Ne garde que les lignes correspondantes (surlignées)'),
-            @('-Exclude <regex>', 'Masque les lignes correspondantes'),
-            @('-NoFollow', 'Affiche la fin du fichier puis quitte')
+            @('-Lines <n>', (L 'Nombre de lignes initiales (défaut : 20)')),
+            @('-Filter <regex>', (L 'Ne garde que les lignes correspondantes (surlignées)')),
+            @('-Exclude <regex>', (L 'Masque les lignes correspondantes')),
+            @('-NoFollow', (L 'Affiche la fin du fichier puis quitte'))
         ) `
         -Examples @('logtail .\app.log', 'logtail C:\logs\api.log -Filter "error|timeout"', 'logtail app.log -Lines 100 -NoFollow') `
-        -Notes @('Touches : Q quitter · Espace insérer un repère horodaté')
+        -Notes @(L 'Touches : Q quitter · Espace insérer un repère horodaté')
     if ($Help -or $Path) { exit 0 } else { exit 1 }
 }
 
-if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Write-PstStatus err "Fichier introuvable : $Path"; exit 1 }
+if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Write-PstStatus err (L 'Fichier introuvable : {0}' $Path); exit 1 }
 $file = (Resolve-Path -LiteralPath $Path).ProviderPath
 $g = $script:Pst.Glyph
 $stats = @{ Error = 0; Warn = 0; Shown = 0 }
@@ -64,7 +65,7 @@ function Write-LogLine {
 }
 
 foreach ($pattern in $Filter, $Exclude) {
-    if ($pattern) { try { $null = [regex]::new($pattern) } catch { Write-PstStatus err "Expression régulière invalide : $pattern"; exit 1 } }
+    if ($pattern) { try { $null = [regex]::new($pattern) } catch { Write-PstStatus err (L 'Expression régulière invalide : {0}' $pattern); exit 1 } }
 }
 
 $stream = $null
@@ -73,7 +74,7 @@ try {
     $reader = New-Object IO.StreamReader $stream, ([Text.Encoding]::UTF8), $true
 
     $subtitle = [IO.Path]::GetFileName($file)
-    if ($Filter) { $subtitle += " $($g.Dot) filtre « $Filter »" }
+    if ($Filter) { $subtitle += ' ' + (L '{0} filtre « {1} »' $g.Dot $Filter) }
     Show-PstHeader -Tool 'logtail' -Subtitle $subtitle
 
     # Dernières lignes : lecture complète en file bornée (suffisant jusqu'à plusieurs centaines de Mo).
@@ -94,7 +95,7 @@ try {
             $length = (New-Object IO.FileInfo $file).Length
             if ($length -lt $position) {
                 # Fichier tronqué ou remplacé (rotation) : on repart du début.
-                Write-Host (Paint "$($g.H * 3) journal réinitialisé $($g.H * 3)" 'Accent2')
+                Write-Host (Paint (L '{0} journal réinitialisé {0}' ($g.H * 3)) 'Accent2')
                 $stream.Seek(0, [IO.SeekOrigin]::Begin) | Out-Null
                 $reader.DiscardBufferedData()
                 $position = 0
@@ -110,18 +111,18 @@ try {
             if ($interactive) {
                 $key = Read-PstKey -TimeoutMs 400
                 if (Test-PstQuitKey $key) { break }
-                if ($key -and $key.Key -eq 'Spacebar') { Write-Host (Paint "$($g.H * 3) repère $(Get-Date -Format 'HH:mm:ss') $($g.H * 3)" 'Accent') }
+                if ($key -and $key.Key -eq 'Spacebar') { Write-Host (Paint (L '{0} repère {1} {0}' ($g.H * 3) (Get-Date -Format 'HH:mm:ss')) 'Accent') }
             }
             else { Start-Sleep -Milliseconds 400 }
         }
     }
 }
-catch { Write-PstStatus err "Lecture impossible : $($_.Exception.Message)"; exit 1 }
+catch { Write-PstStatus err (L 'Lecture impossible : {0}' $_.Exception.Message); exit 1 }
 finally {
     try { [Console]::TreatControlCAsInput = $false } catch { $null = $_ }
     if ($stream) { $stream.Dispose() }
 }
 
 Write-Host ''
-Write-Host (Paint "  $($stats.Shown) ligne(s) $($g.Dot) $($stats.Error) erreur(s) $($g.Dot) $($stats.Warn) avertissement(s)" 'Dim')
+Write-Host (Paint ('  ' + (L '{1} ligne(s) {0} {2} erreur(s) {0} {3} avertissement(s)' $g.Dot $stats.Shown $stats.Error $stats.Warn)) 'Dim')
 Write-Host ''

@@ -18,28 +18,29 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'serve'
 
 if ($Help -or (Test-PstHelpArg (@($Path) + @($Rest)))) {
-    Show-PstHelp -Name 'serve' -Synopsis 'Sert un dossier en HTTP, le temps d''un test.' `
-        -Usage @('serve [dossier] [-Port <n>] [-Open] [-Lan]') `
+    Show-PstHelp -Name 'serve' -Synopsis (L 'Sert un dossier en HTTP, le temps d''un test.') `
+        -Usage @((L 'serve [dossier] [-Port <n>] [-Open] [-Lan]')) `
         -Options @(
-            @('dossier', 'Dossier à servir (défaut : dossier courant)'),
-            @('-Port <n>', 'Port d''écoute (défaut : 8080 ; le suivant libre est pris si occupé)'),
-            @('-Open', 'Ouvre le navigateur'),
-            @('-Lan', 'Accessible depuis le réseau local (administrateur requis sous Windows)')
+            @((L 'Dossier').ToLowerInvariant(), (L 'Dossier à servir (défaut : dossier courant)')),
+            @('-Port <n>', (L 'Port d''écoute (défaut : 8080 ; le suivant libre est pris si occupé)')),
+            @('-Open', (L 'Ouvre le navigateur')),
+            @('-Lan', (L 'Accessible depuis le réseau local (administrateur requis sous Windows)'))
         ) `
         -Examples @('serve', 'serve .\dist -Port 3000 -Open') `
-        -Notes @('Touche : Q pour arrêter. index.html est servi automatiquement s''il existe.')
+        -Notes @((L 'Touche : Q pour arrêter. index.html est servi automatiquement s''il existe.'))
     exit 0
 }
 
-if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err "Dossier introuvable : $Path"; exit 1 }
+if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err (L 'Dossier introuvable : {0}' $Path); exit 1 }
 $root = (Resolve-Path -LiteralPath $Path).ProviderPath.TrimEnd('\', '/')
 $g = $script:Pst.Glyph
 
 if ($Lan -and $script:Pst.IsWindows -and -not (Test-PstAdmin)) {
-    Write-PstStatus err 'Ouvrir le serveur au réseau (-Lan) demande un terminal administrateur.'
-    Write-PstStatus info 'Sans -Lan, le serveur fonctionne sans droits particuliers sur http://localhost.'
+    Write-PstStatus err (L 'Ouvrir le serveur au réseau (-Lan) demande un terminal administrateur.')
+    Write-PstStatus info (L 'Sans -Lan, le serveur fonctionne sans droits particuliers sur http://localhost.')
     exit 1
 }
 
@@ -60,17 +61,17 @@ for ($try = 0; $try -lt 20; $try++) {
     try { $candidate.Start(); $listener = $candidate; $Port = $Port + $try; break }
     catch { $candidate.Close() }
 }
-if (-not $listener) { Write-PstStatus err "Aucun port libre entre $Port et $($Port + 19)."; exit 1 }
+if (-not $listener) { Write-PstStatus err (L 'Aucun port libre entre {0} et {1}.' $Port ($Port + 19)); exit 1 }
 
 $url = "http://localhost:$Port/"
 Show-PstHeader -Tool 'serve' -Subtitle (Split-Path -Leaf $root)
 $info = @(
-    ((Paint (Format-PstPad 'Adresse' 9) 'Accent') + (Paint $url 'Ok' -Bold)),
-    ((Paint (Format-PstPad 'Dossier' 9) 'Accent') + (Limit-PstText $root 70))
+    ((Paint (Format-PstPad (L 'Adresse') 9) 'Accent') + (Paint $url 'Ok' -Bold)),
+    ((Paint (Format-PstPad (L 'Dossier') 9) 'Accent') + (Limit-PstText $root 70))
 )
-if ($Lan) { $info += (Paint (Format-PstPad 'Réseau' 9) 'Accent') + (Paint 'ouvert au réseau local' 'Warn') } else { $info += (Paint (Format-PstPad 'Portée' 9) 'Accent') + 'cette machine uniquement' }
+if ($Lan) { $info += (Paint (Format-PstPad (L 'Réseau') 9) 'Accent') + (Paint (L 'ouvert au réseau local') 'Warn') } else { $info += (Paint (Format-PstPad (L 'Portée') 9) 'Accent') + (L 'cette machine uniquement') }
 Format-PstBox -Lines $info | Write-PstLine
-Write-Host (Paint '  Q pour arrêter' 'Dim')
+Write-Host (Paint ('  ' + (L 'Q pour arrêter')) 'Dim')
 Write-Host ''
 if ($Open) { try { Start-Process $url } catch { $null = $_ } }
 
@@ -119,8 +120,8 @@ try {
             $target = [IO.Path]::GetFullPath((Join-Path $root ($urlPath.TrimStart('/') -replace '/', [IO.Path]::DirectorySeparatorChar)))
             # Interdit de sortir du dossier servi (../).
             $inside = ($target -eq $root) -or $target.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
-            if ($request.HttpMethod -notin 'GET', 'HEAD') { $code = 405; Send-Bytes $response 405 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes('Méthode non autorisée')) }
-            elseif (-not $inside) { $code = 403; Send-Bytes $response 403 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes('Accès refusé')) }
+            if ($request.HttpMethod -notin 'GET', 'HEAD') { $code = 405; Send-Bytes $response 405 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes((L 'Méthode non autorisée'))) }
+            elseif (-not $inside) { $code = 403; Send-Bytes $response 403 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes((L 'Accès refusé'))) }
             elseif (Test-Path -LiteralPath $target -PathType Container) {
                 $index = Join-Path $target 'index.html'
                 if (-not $urlPath.EndsWith('/')) { $code = 301; $response.StatusCode = 301; $response.RedirectLocation = $request.Url.AbsolutePath + '/' }
@@ -141,7 +142,7 @@ try {
                 }
                 finally { $fs.Dispose() }
             }
-            else { $code = 404; Send-Bytes $response 404 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes('Introuvable')) }
+            else { $code = 404; Send-Bytes $response 404 'text/plain; charset=utf-8' ([Text.Encoding]::UTF8.GetBytes((L 'Introuvable'))) }
         }
         catch { $code = 500; try { $response.StatusCode = 500 } catch { $null = $_ } }
         finally { try { $response.Close() } catch { $null = $_ } }
@@ -159,5 +160,5 @@ finally {
     $listener.Close()
 }
 Write-Host ''
-Write-PstStatus info "Serveur arrêté $($g.Dot) $served requête(s) servie(s)."
+Write-PstStatus info (L 'Serveur arrêté {0} {1} requête(s) servie(s).' $g.Dot $served)
 Write-Host ''
