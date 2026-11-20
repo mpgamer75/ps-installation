@@ -277,7 +277,8 @@ Describe 'paths' {
         Set-Store -User "$($script:VarA);$($script:Missing);$(Join-Path $Base 'new')" -Machine $script:B
         $r = Invoke-PathTool @('-Json') @($script:B, $script:A, $script:Missing, $script:A, (Join-Path $Base 'noexe'))
         $r.ExitCode | Should -Be 0
-        $entries = @($r.Output | ConvertFrom-Json)
+        # ForEach-Object : sous PowerShell 5.1, un tableau JSON arrive comme un seul objet.
+        $entries = @($r.Output | ConvertFrom-Json | ForEach-Object { $_ })
         $byPath = @{}
         foreach ($e in $entries) { if (-not $byPath.ContainsKey($e.Path)) { $byPath[$e.Path] = $e } }
         $byPath[$script:B].Scope | Should -Be 'Machine'
@@ -328,7 +329,7 @@ Describe 'paths' {
         (Get-Store).User | Should -Match 'ghost$'
     }
 
-    It 'refuse proprement le PATH Machine sans droits administrateur' -Skip:($IsWindows -and ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    It 'refuse proprement le PATH Machine sans droits administrateur' -Skip:(($PSVersionTable.PSVersion.Major -lt 6 -or $IsWindows) -and ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Set-Store -User '' -Machine $script:B
         $r = Invoke-PathTool @('add', $script:A, '-Machine')
         $r.ExitCode | Should -Be 1

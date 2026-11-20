@@ -59,6 +59,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $ErrorActionPreference = 'Stop'
+          $env:PSTOOLS_LANG = 'fr'   # les machines de la CI sont en anglais ; les vérifications portent sur le français
           ./install.ps1 -Scope CurrentUser -Yes
           $bin = Join-Path $env:LOCALAPPDATA 'ps-tools\bin'
           if (-not (Test-Path (Join-Path $bin 'monitor.cmd'))) { throw 'lanceur absent' }

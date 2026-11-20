@@ -251,7 +251,7 @@ Describe 'note' {
         $r.Output | Should -Match 'Appeler le plombier'
         $r.Output | Should -Match '1 note\(s\) trouvée'
         $r.Output | Should -Not -Match 'budget'
-        @((Invoke-Tool 'note' @('-Search', 'budget', '-Json')).Output | ConvertFrom-Json).Count | Should -Be 1
+        @((Invoke-Tool 'note' @('-Search', 'budget', '-Json')).Output | ConvertFrom-Json | ForEach-Object { $_ }).Count | Should -Be 1
         (Invoke-Tool 'note' @('-Search', 'introuvable')).Output | Should -Match 'Aucune note ne contient'
     }
 

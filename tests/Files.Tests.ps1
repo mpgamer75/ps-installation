@@ -197,10 +197,16 @@ Describe 'dupes' {
         try { New-Item -ItemType SymbolicLink -Path $link -Target (Join-Path $Dir 'a') -ErrorAction Stop | Out-Null }
         catch { Set-ItResult -Skipped -Because 'création de lien impossible sans droits'; return }
         try {
-            $j = (Invoke-Tool 'dupes' @($Dir, '-Json')).Output | ConvertFrom-Json
-            $j.FilesScanned | Should -Be 7
+            $r = Invoke-Tool 'dupes' @($Dir, '-Json')
+            $r.ExitCode | Should -Be 0 -Because $r.Output
+            $j = $r.Output | ConvertFrom-Json
+            $j | Should -Not -BeNullOrEmpty -Because $r.Output
+            $j.FilesScanned | Should -Be 7 -Because $r.Output
         }
-        finally { Remove-Item $link -Force }
+        finally {
+            # Supprime le lien lui-même (Remove-Item sous 5.1 peut échouer ou suivre la cible).
+            try { [IO.Directory]::Delete($link) } catch { Remove-Item $link -Force -ErrorAction SilentlyContinue }
+        }
     }
 
     It '-Yes garde exactement une copie par groupe' {
