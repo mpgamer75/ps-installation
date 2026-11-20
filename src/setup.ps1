@@ -230,9 +230,10 @@ function Invoke-Uninstall {
         if ($isAdmin) { Remove-Legacy } else { $blocked = $true }
     }
 
-    # Bloc de chargement dans le profil PowerShell
+    # Intégration au shell : bloc du profil, profil Windows Terminal, réglages de sécurité
     if (-not $InstallRoot) {
         foreach ($file in @(Disable-PstShell)) { Write-PstStatus ok "Profil nettoyé : $file" }
+        if ($isWindowsHost) { Undo-PstShellRemedy }
     }
 
     # Rappels planifiés et données personnelles (pas pour un emplacement personnalisé :
@@ -251,7 +252,7 @@ function Invoke-Uninstall {
     elseif ($isWindowsHost) { $dataDir = Join-Path (Get-ScopeRoot 'CurrentUser') 'data' }
     if ($dataDir -and (Test-Path -LiteralPath $dataDir)) {
         $purge = [bool]$PurgeData
-        if (-not $purge -and -not $Yes) { $purge = Read-PstConfirm 'Supprimer aussi vos données (rappels, favoris, réglages de l''assistant) ?' }
+        if (-not $purge -and -not $Yes) { $purge = Read-PstConfirm 'Supprimer aussi vos données (rappels, favoris, clés d''API, réglages, historique de consommation) ?' }
         if ($purge) {
             Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
             $parent = Split-Path -Parent $dataDir
@@ -313,37 +314,58 @@ function Resolve-Scope {
 }
 
 function Invoke-Install {
-    Show-PstBanner
     if (-not $isWindowsHost -and -not $InstallRoot) {
+        Show-PstBanner
         Write-PstStatus err 'ps-tools s''installe sur Windows. (Hors Windows : -InstallRoot <dossier> pour un essai.)'
         throw 'Plateforme non prise en charge'
     }
 
-    $resolved = Resolve-Scope
-    if (-not $resolved) { Write-PstStatus info 'Installation interrompue.'; Write-Host ''; return }
+    # 1. Manifeste
+    try { $manifest = Get-SourceText 'manifest.json' | ConvertFrom-Json }
+    catch {
+        Show-PstBanner
+        Write-PstStatus err "Impossible de lire le manifeste depuis $Source : $($_.Exception.Message)"
+        Write-PstStatus info 'Vérifiez votre connexion (ou un proxy d''entreprise) puis réessayez.'
+        throw
+    }
+    $available = @($manifest.tools)
+    $selected = $available
+
+    # Assistant complet en session interactive ; installation directe avec -Yes, -Tools ou -InstallRoot.
+    $wizard = $null
+    $useWizard = (Test-PstInteractive) -and -not $Yes -and -not $InstallRoot -and -not $Tools -and $isWindowsHost -and -not $env:PSTOOLS_NO_WIZARD
+    if ($useWizard) {
+        $scopeDefault = 'CurrentUser'
+        if ($Scope -eq 'AllUsers') { $scopeDefault = 'AllUsers' }
+        $wizard = Invoke-PstInstallWizard -Manifest $manifest -IsAdmin $isAdmin -ScopeDefault $scopeDefault -Roots @{ CurrentUser = (Get-ScopeRoot 'CurrentUser'); AllUsers = (Get-ScopeRoot 'AllUsers') }
+        if (-not $wizard) {
+            Write-Host ''
+            Write-PstStatus info 'Installation annulée : rien n''a été modifié.'
+            Write-Host ''
+            return
+        }
+        $resolved = $wizard.Scope
+        if ($resolved -eq 'AllUsers' -and -not $isAdmin) { $resolved = 'CurrentUser' }
+        $selected = @($available | Where-Object { $_.required -or $wizard.Tools -contains $_.name })
+        Show-PstWizardFrame -Title 'Installation en cours' -Caption 'assistant d''installation'
+    }
+    else {
+        Show-PstBanner
+        $resolved = Resolve-Scope
+        if (-not $resolved) { Write-PstStatus info 'Installation interrompue.'; Write-Host ''; return }
+        if ($Tools) {
+            $wanted = @($Tools | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLower() })
+            $unknown = @($wanted | Where-Object { @($available | ForEach-Object { $_.name }) -notcontains $_ })
+            if ($unknown.Count) { throw "Outil(s) inconnu(s) : $($unknown -join ', '). Disponibles : $(@($available | ForEach-Object { $_.name }) -join ', ')" }
+            $selected = @($available | Where-Object { $_.required -or $wanted -contains $_.name })
+        }
+        Write-PstStatus step "Source : $Source"
+    }
     $target = 'User'
     if ($resolved -eq 'AllUsers') { $target = 'Machine' }
     if ($InstallRoot) { $root = $InstallRoot } else { $root = Get-ScopeRoot $resolved }
     $app = Join-Path $root 'app'
     $bin = Join-Path $root 'bin'
-
-    # 1. Manifeste
-    Write-PstStatus step "Source : $Source"
-    try { $manifest = Get-SourceText 'manifest.json' | ConvertFrom-Json }
-    catch {
-        Write-PstStatus err "Impossible de lire le manifeste : $($_.Exception.Message)"
-        Write-PstStatus info 'Vérifiez votre connexion (ou un proxy d''entreprise) puis réessayez.'
-        throw
-    }
-
-    $available = @($manifest.tools)
-    $selected = $available
-    if ($Tools) {
-        $wanted = @($Tools | ForEach-Object { $_ -split ',' } | Where-Object { $_ } | ForEach-Object { $_.Trim().ToLower() })
-        $unknown = @($wanted | Where-Object { @($available | ForEach-Object { $_.name }) -notcontains $_ })
-        if ($unknown.Count) { throw "Outil(s) inconnu(s) : $($unknown -join ', '). Disponibles : $(@($available | ForEach-Object { $_.name }) -join ', ')" }
-        $selected = @($available | Where-Object { $_.required -or $wanted -contains $_.name })
-    }
 
     $previous = Get-InstallInfo $root
     $label = 'utilisateur courant, sans droits administrateur'
@@ -387,7 +409,7 @@ function Invoke-Install {
         $info = [ordered]@{
             Version = [string]$manifest.version; Scope = $resolved; Root = $root; Source = $Source
             InstalledAt = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); Tools = $keep
-            Selection = $(if ($Tools) { 'custom' } else { 'all' })
+            Selection = $(if ($Tools -or ($wizard -and $selected.Count -lt $available.Count)) { 'custom' } else { 'all' })
         }
         [IO.File]::WriteAllText((Join-Path $app 'install.json'), ($info | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
     }
@@ -421,26 +443,32 @@ function Invoke-Install {
         }
     }
 
-    # 5. Intégration au shell (modifie le profil de l'utilisateur : uniquement avec son accord)
+    # 5. Configuration : thème, intégration au shell, assistant IA
     $shellActive = $false
-    if (-not $InstallRoot -and -not $NoShell) {
+    if ($wizard) {
+        Write-Host ''
+        $shellState = Invoke-PstApplyConfig -State $wizard -AppRoot $app
+        $shellActive = ($shellState -eq 'active' -or $shellState -eq 'terminal')
+    }
+    elseif (-not $InstallRoot -and -not $NoShell) {
+        # Intégration au shell : modifie le profil de l'utilisateur, uniquement avec son accord.
         $shellActive = Test-PstShell
         $wanted = [bool]$Shell
-        if (-not $shellActive -and -not $wanted -and -not $Yes -and (Test-PstInteractive)) {
+        $interactive = (-not $Yes) -and (Test-PstInteractive)
+        if (-not $shellActive -and -not $wanted -and $interactive) {
             Write-Host ''
             Write-Host '  L''intégration au shell ajoute une invite claire (dossier, branche Git, durée), un historique'
             Write-Host '  plus malin, des raccourcis (Alt+A : IA) et des commandes façon Unix (ll, grep, sudo, jump...).'
             $wanted = Read-PstConfirm 'L''activer ? (une ligne ajoutée à votre profil PowerShell, réversible avec « pst shell off »)' -DefaultYes
         }
         if ($shellActive -or $wanted) {
+            Write-Host ''
+            $remedy = ''
+            if ((Get-PstConfig).shell.remedy -eq 'terminal') { $remedy = 'terminal' }
             try {
-                $null = Enable-PstShell -AppRoot $app
-                $shellActive = $true
-                Write-PstStatus ok 'Intégration au shell active (nouveaux terminaux)'
-                $policy = Get-PstEffectivePolicy
-                if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') {
-                    Write-PstStatus warn "La stratégie d'exécution ($policy) empêche le chargement du profil : lancez « pst shell on » pour le correctif."
-                }
+                # Le profil n'est modifié que s'il peut réellement se charger : jamais d'erreur au démarrage.
+                $shellState = Invoke-PstShellActivation -AppRoot $app -Remedy $remedy -Interactive:$interactive
+                $shellActive = ($shellState -ne 'blocked')
             }
             catch { Write-PstStatus warn "Profil non modifié : $($_.Exception.Message)" }
         }
@@ -454,6 +482,7 @@ function Invoke-Install {
     if ($names.Count -gt $half) { $summary += ('           ' + (@($names | Select-Object -Skip $half) -join '  ')) }
     $summary += @(
         ((Paint 'Gestion    ' 'Accent' -Bold) + 'pst' + (Paint '  (menu, diagnostic, mise à jour)' 'Dim')),
+        ((Paint 'Réglages   ' 'Accent' -Bold) + 'pst setup' + (Paint '  (apparence, shell, assistant IA)' 'Dim')),
         ((Paint 'Retrait    ' 'Accent' -Bold) + 'pst-uninstall'),
         ((Paint 'Aide       ' 'Accent' -Bold) + '<commande> -Help' + (Paint '  ·  pst keys pour les raccourcis' 'Dim'))
     )
@@ -461,8 +490,20 @@ function Invoke-Install {
     if ($pathReady) { $summary += ''; $summary += Paint 'Disponible tout de suite ici, et dans tout nouveau terminal.' 'Dim' }
     Format-PstBox -Title "ps-tools $($manifest.version) est installé" -Lines $summary -Color 'Ok' | Write-PstLine
     Write-Host ''
-    Write-Host ('  Pour commencer :  ' + (Paint 'pst' 'Ok' -Bold) + (Paint '   ou   ' 'Dim') + (Paint 'sysinfo' 'Ok' -Bold))
+    $first = (Paint 'pst' 'Ok' -Bold) + (Paint '   ou   ' 'Dim') + (Paint 'sysinfo' 'Ok' -Bold)
+    if ($wizard -and $wizard.Ai -is [hashtable]) { $first += (Paint '   ou   ' 'Dim') + (Paint 'ask "bonjour"' 'Ok' -Bold) }
+    Write-Host ('  Pour commencer :  ' + $first)
+    if ($shellActive) { Write-Host (Paint '  Ouvrez un nouveau terminal pour profiter de l''intégration au shell.' 'Dim') }
     Write-Host ''
+}
+
+# Bibliothèques de l'assistant (IA, configuration) : depuis le dossier voisin quand il
+# existe (dépôt ou installation), sinon depuis la source (amorce lancée depuis le web).
+foreach ($library in 'PsTools.AI.ps1', 'PsTools.Wizard.ps1') {
+    $local = $null
+    if ($PSScriptRoot) { $local = Join-Path (Join-Path $PSScriptRoot 'lib') $library }
+    if ($local -and (Test-Path -LiteralPath $local)) { . $local }
+    else { . ([scriptblock]::Create((Get-SourceText "src/lib/$library"))) }
 }
 
 if ($Uninstall) { Invoke-Uninstall } else { Invoke-Install }

@@ -5,22 +5,32 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:Pst = @{
-    Version   = '2.2.0'
+    Version   = '2.3.0'
     Repo      = 'mpgamer75/ps-installation'
     Esc       = [string][char]27
     # PSTOOLS_TEST_WINDOWS : réservé aux tests, pour exercer le rendu hors Windows avec des données simulées.
     IsWindows = ($PSVersionTable.PSVersion.Major -lt 6) -or [bool]$IsWindows -or [bool]$env:PSTOOLS_TEST_WINDOWS
     Ansi      = $false
     Glyph     = @{}
-    Theme     = @{
-        Accent  = @(86, 182, 255)
-        Accent2 = @(178, 132, 255)
-        Ok      = @(80, 220, 140)
-        Warn    = @(255, 190, 80)
-        Err     = @(255, 95, 110)
-        Dim     = @(125, 133, 150)
-        Title   = @(240, 244, 255)
-    }
+    Theme     = @{}
+    ThemeName = 'nuit'
+}
+
+# Palettes : chaque outil n'utilise que ces sept rôles de couleur.
+$script:PstThemes = [ordered]@{
+    nuit  = @{ Label = 'Nuit'; Hint = 'défaut, fond sombre'; Accent = @(86, 182, 255); Accent2 = @(178, 132, 255); Ok = @(80, 220, 140); Warn = @(255, 190, 80); Err = @(255, 95, 110); Dim = @(125, 133, 150); Title = @(240, 244, 255) }
+    ocean = @{ Label = 'Océan'; Hint = 'turquoise et bleu, fond sombre'; Accent = @(64, 200, 224); Accent2 = @(96, 140, 255); Ok = @(70, 220, 170); Warn = @(255, 200, 90); Err = @(255, 100, 120); Dim = @(120, 140, 160); Title = @(230, 245, 255) }
+    ambre = @{ Label = 'Ambre'; Hint = 'tons chauds, fond sombre'; Accent = @(255, 176, 59); Accent2 = @(255, 122, 89); Ok = @(170, 220, 110); Warn = @(255, 214, 102); Err = @(255, 92, 82); Dim = @(150, 140, 125); Title = @(255, 242, 224) }
+    clair = @{ Label = 'Clair'; Hint = 'pour les terminaux à fond blanc'; Accent = @(0, 105, 190); Accent2 = @(125, 60, 200); Ok = @(0, 135, 70); Warn = @(175, 100, 0); Err = @(200, 35, 55); Dim = @(105, 112, 128); Title = @(25, 30, 40) }
+    mono  = @{ Label = 'Mono'; Hint = 'nuances de gris, sobre'; Accent = @(215, 215, 215); Accent2 = @(175, 175, 175); Ok = @(200, 200, 200); Warn = @(235, 235, 235); Err = @(255, 255, 255); Dim = @(120, 120, 120); Title = @(250, 250, 250) }
+}
+
+function Set-PstTheme {
+    # Applique une palette pour la session en cours (sans l'enregistrer).
+    param([string]$Name)
+    if (-not $Name -or -not $script:PstThemes.Contains($Name)) { $Name = 'nuit' }
+    $script:Pst.ThemeName = $Name
+    $script:Pst.Theme = $script:PstThemes[$Name]
 }
 
 function Initialize-PstConsole {
@@ -31,6 +41,10 @@ function Initialize-PstConsole {
     if ($env:NO_COLOR) { $ansi = $false }
     if ($env:PSTOOLS_FORCE_COLOR) { $ansi = $true }
     $script:Pst.Ansi = $ansi
+
+    $theme = $env:PSTOOLS_THEME
+    if (-not $theme) { try { $theme = [string](Get-PstConfig).theme } catch { $theme = $null } }
+    Set-PstTheme $theme
 
     if ($env:PSTOOLS_ASCII) {
         $script:Pst.Glyph = @{
@@ -417,12 +431,22 @@ function Read-PstConfirm {
 
 function Read-PstChoice {
     # Menu à flèches. Retourne l'index choisi, ou -1 si annulé (Échap).
-    param([string]$Title, [string[]]$Items, [int]$Default = 0)
+    # -Hints : courte précision affichée en gris après chaque entrée.
+    param([string]$Title, [string[]]$Items, [int]$Default = 0, [string[]]$Hints = @())
     $g = $script:Pst.Glyph
     if ($Title) { Write-Host ("  $(Paint '?' 'Accent' -Bold) " + (Paint $Title 'Title' -Bold)) }
+    $labelWidth = 0
+    foreach ($item in $Items) { $labelWidth = [Math]::Max($labelWidth, (Get-PstVisibleLength $item)) }
+    $hintOf = {
+        param([int]$i)
+        if ($i -ge $Hints.Count -or -not $Hints[$i]) { return '' }
+        $h = $Hints[$i]
+        if ($h.Contains($script:Pst.Esc)) { return '  ' + $h }
+        return '  ' + (Paint $h 'Dim')
+    }
 
     if (-not $script:Pst.Ansi -or -not (Test-PstInteractive)) {
-        for ($i = 0; $i -lt $Items.Count; $i++) { Write-Host ("    {0}. {1}" -f ($i + 1), $Items[$i]) }
+        for ($i = 0; $i -lt $Items.Count; $i++) { Write-Host (("    {0}. " -f ($i + 1)) + (Format-PstPad $Items[$i] $labelWidth) + (& $hintOf $i)) }
         if (-not (Test-PstInteractive)) { return $Default }
         $answer = Read-Host '  Votre choix'
         if ($answer -match '^\d+$' -and [int]$answer -ge 1 -and [int]$answer -le $Items.Count) { return ([int]$answer - 1) }
@@ -435,8 +459,9 @@ function Read-PstChoice {
     try {
         while ($true) {
             for ($i = 0; $i -lt $Items.Count; $i++) {
-                if ($i -eq $index) { Write-Host ("    $(Paint $g.Pointer 'Accent') " + (Paint $Items[$i] 'Title' -Bold) + "$e[K") }
-                else { Write-Host ("      " + (Paint $Items[$i] 'Dim') + "$e[K") }
+                $label = Format-PstPad $Items[$i] $labelWidth
+                if ($i -eq $index) { Write-Host ("    $(Paint $g.Pointer 'Accent') " + (Paint $label 'Title' -Bold) + (& $hintOf $i) + "$e[K") }
+                else { Write-Host ("      " + (Paint $label 'Dim') + (& $hintOf $i) + "$e[K") }
             }
             Write-Host ((Paint "    $($g.Up)$($g.Down) naviguer $($g.Dot) Entrée valider $($g.Dot) Échap annuler" 'Dim') + "$e[K")
             $key = [Console]::ReadKey($true)
@@ -612,48 +637,66 @@ function Remove-PstProfileBlock {
 }
 
 function Test-PstShell {
+    # Vrai si l'intégration est installée : bloc dans un profil, ou profil Windows Terminal dédié.
+    if ($env:LOCALAPPDATA -and (Test-Path -LiteralPath (Get-PstTerminalFragmentPath))) { return $true }
     foreach ($file in (Get-PstProfilePaths)) {
         if ((Test-Path -LiteralPath $file) -and (Read-PstProfile $file).Text -match '# >>> ps-tools >>>') { return $true }
     }
     return $false
 }
 
-function Enable-PstShell {
-    # Ajoute (ou met à jour) le bloc de chargement dans chaque profil. Retourne les fichiers modifiés.
+function Get-PstShellBlock {
     param([string]$AppRoot)
     $script = Join-Path (Join-Path $AppRoot 'shell') 'PsTools.Shell.ps1'
-    $block = @(
-        '# >>> ps-tools >>>'
-        '# Chargement de ps-tools dans le shell (retrait : pst shell off)'
-        "`$pstShellScript = '$($script -replace "'", "''")'"
-        'if (Test-Path -LiteralPath $pstShellScript) { . $pstShellScript }'
-        'Remove-Variable pstShellScript -ErrorAction SilentlyContinue'
-        '# <<< ps-tools <<<'
-    ) -join "`r`n"
-    $changed = @()
+    return (@(
+            '# >>> ps-tools >>>'
+            '# Chargement de ps-tools dans le shell (retrait : pst shell off)'
+            "`$pstShellScript = '$($script -replace "'", "''")'"
+            'if (Test-Path -LiteralPath $pstShellScript) { . $pstShellScript }'
+            'Remove-Variable pstShellScript -ErrorAction SilentlyContinue'
+            '# <<< ps-tools <<<'
+        ) -join "`r`n")
+}
+
+function Remove-PstShellBlockFrom {
+    # Retire notre bloc d'un profil ; supprime le fichier s'il ne contenait que lui.
+    param([string]$File)
+    if (-not (Test-Path -LiteralPath $File)) { return $false }
+    $current = Read-PstProfile $File
+    if ($current.Text -notmatch '# >>> ps-tools >>>') { return $false }
+    $body = Remove-PstProfileBlock $current.Text
+    if ($body.Trim()) { [IO.File]::WriteAllText($File, $body + "`r`n", $current.Encoding) }
+    else { Remove-Item -LiteralPath $File -Force }
+    return $true
+}
+
+function Enable-PstShell {
+    # Ajoute (ou met à jour) le bloc de chargement dans chaque profil qui peut réellement
+    # se charger. Retourne @{ Written = fichiers modifiés ; Blocked = profils refusés }.
+    # Un profil bloqué ne reçoit pas le bloc (et en est retiré) : jamais d'erreur rouge au démarrage.
+    param([string]$AppRoot, [switch]$NoProbe)
+    $block = Get-PstShellBlock $AppRoot
+    $result = @{ Written = @(); Blocked = @() }
     foreach ($file in (Get-PstProfilePaths)) {
+        if (-not $NoProbe -and -not (Test-PstProfileLoadable $file)) {
+            $null = Remove-PstShellBlockFrom $file
+            $result.Blocked += $file
+            continue
+        }
         $current = Read-PstProfile $file
         $body = Remove-PstProfileBlock $current.Text
         if ($body) { $body += "`r`n`r`n" }
         $dir = Split-Path -Parent $file
         if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         [IO.File]::WriteAllText($file, $body + $block + "`r`n", $current.Encoding)
-        $changed += $file
+        $result.Written += $file
     }
-    return $changed
+    return $result
 }
 
 function Disable-PstShell {
     $changed = @()
-    foreach ($file in (Get-PstProfilePaths)) {
-        if (-not (Test-Path -LiteralPath $file)) { continue }
-        $current = Read-PstProfile $file
-        if ($current.Text -notmatch '# >>> ps-tools >>>') { continue }
-        $body = Remove-PstProfileBlock $current.Text
-        if ($body.Trim()) { [IO.File]::WriteAllText($file, $body + "`r`n", $current.Encoding) }
-        else { Remove-Item -LiteralPath $file -Force }      # le profil ne contenait que notre bloc
-        $changed += $file
-    }
+    foreach ($file in (Get-PstProfilePaths)) { if (Remove-PstShellBlockFrom $file) { $changed += $file } }
     return $changed
 }
 
@@ -670,6 +713,327 @@ function Get-PstEffectivePolicy {
     catch { return 'Unknown' }
     if ($PSVersionTable.PSVersion.Major -ge 6) { return 'RemoteSigned' }
     return 'Restricted'
+}
+
+# ── Configuration et secrets ─────────────────────────────────────────────────
+# config.json : préférences (thème, assistant IA, intégration au shell).
+# secrets.json : clés d'API, chiffrées pour le compte Windows courant (DPAPI).
+
+function ConvertTo-PstHashtable {
+    # Convertit récursivement le résultat de ConvertFrom-Json (PowerShell 5.1 et 7).
+    param($Value)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $table = @{}
+        foreach ($p in $Value.PSObject.Properties) { $table[[string]$p.Name] = ConvertTo-PstHashtable $p.Value }
+        return $table
+    }
+    if ($Value -is [System.Collections.IList] -and $Value -isnot [string]) { return , @($Value | ForEach-Object { ConvertTo-PstHashtable $_ }) }
+    return $Value
+}
+
+function Merge-PstHashtable {
+    # Recouvre $Base par $Override, clé par clé, sans perdre les valeurs par défaut.
+    param([hashtable]$Base, [hashtable]$Override)
+    # GetEnumerator plutôt que .Keys : une entrée nommée « keys » (réglage du shell)
+    # masquerait sinon la propriété. Clés converties en [string] pour que ConvertTo-Json
+    # accepte ensuite la table.
+    foreach ($key in @($Override.GetEnumerator() | ForEach-Object { [string]$_.Key })) {
+        if ($Base[$key] -is [hashtable] -and $Override[$key] -is [hashtable]) { Merge-PstHashtable $Base[$key] $Override[$key] | Out-Null }
+        else { $Base[$key] = $Override[$key] }
+    }
+    return $Base
+}
+
+function Read-PstJsonFile {
+    param([string]$File)
+    if (-not (Test-Path -LiteralPath $File)) { return $null }
+    try {
+        $raw = [IO.File]::ReadAllText($File, [Text.Encoding]::UTF8)
+        if (-not $raw.Trim()) { return $null }
+        return (ConvertTo-PstHashtable ($raw | ConvertFrom-Json))
+    }
+    catch { return $null }
+}
+
+function Write-PstJsonFile {
+    param([string]$File, $Value)
+    $json = ConvertTo-Json -InputObject $Value -Depth 8
+    [IO.File]::WriteAllText($File, $json, (New-Object Text.UTF8Encoding $false))
+}
+
+function Get-PstConfig {
+    # Toujours une configuration complète : valeurs par défaut recouvertes par config.json.
+    $config = @{
+        theme = 'nuit'
+        ai    = @{ provider = ''; model = ''; effort = 'low'; budget = 0; baseUrl = ''; prices = @{} }
+        shell = @{ prompt = $true; keys = $true; aliases = $true; remedy = ''; trustedHost = ''; previousPolicy = '' }
+    }
+    $saved = Read-PstJsonFile (Join-Path (Get-PstDataDir) 'config.json')
+    if ($saved -is [hashtable]) { $config = Merge-PstHashtable $config $saved }
+    return $config
+}
+
+function Save-PstConfig {
+    param([hashtable]$Config)
+    Write-PstJsonFile (Join-Path (Get-PstDataDir) 'config.json') $Config
+}
+
+function Set-PstSecret {
+    # Enregistre (ou efface avec une valeur vide) une clé, chiffrée pour ce compte Windows.
+    # La clé arrive en clair (saisie masquée puis vérifiée auprès du service) : elle n'est
+    # écrite sur disque qu'après chiffrement DPAPI par ConvertFrom-SecureString.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '')]
+    param([string]$Name, [string]$Value)
+    $file = Join-Path (Get-PstDataDir) 'secrets.json'
+    $secrets = Read-PstJsonFile $file
+    if ($secrets -isnot [hashtable]) { $secrets = @{} }
+    if ([string]::IsNullOrEmpty($Value)) { $secrets.Remove($Name) }
+    else { $secrets[$Name] = ConvertFrom-SecureString -SecureString (ConvertTo-SecureString -String $Value -AsPlainText -Force) }
+    Write-PstJsonFile $file $secrets
+}
+
+function Get-PstSecret {
+    param([string]$Name)
+    $secrets = Read-PstJsonFile (Join-Path (Get-PstDataDir) 'secrets.json')
+    if ($secrets -isnot [hashtable] -or -not $secrets[$Name]) { return $null }
+    try {
+        $secure = ConvertTo-SecureString -String ([string]$secrets[$Name]) -ErrorAction Stop
+        return (New-Object System.Net.NetworkCredential '', $secure).Password
+    }
+    catch { return $null }   # chiffrée par un autre compte ou une autre machine
+}
+
+# ── Composants d'assistant (wizard) ──────────────────────────────────────────
+
+function Format-PstWrap {
+    # Coupe un texte en lignes de largeur visible maximale.
+    param([string]$Text, [int]$Width = 72)
+    $lines = @()
+    foreach ($paragraph in ($Text -split "`n")) {
+        $line = ''
+        foreach ($word in ($paragraph -split ' ')) {
+            if (-not $line) { $line = $word }
+            elseif ((Get-PstVisibleLength $line) + 1 + (Get-PstVisibleLength $word) -le $Width) { $line += ' ' + $word }
+            else { $lines += $line; $line = $word }
+        }
+        $lines += $line
+    }
+    return $lines
+}
+
+function Show-PstWizardFrame {
+    # Écran d'étape : logo compact, fil d'Ariane des étapes, titre et explication.
+    param([string[]]$Steps, [int]$Current, [string]$Title, [string]$Text = '', [string]$Caption = 'assistant d''installation')
+    $g = $script:Pst.Glyph
+    $interactive = (Test-PstInteractive) -and $script:Pst.Ansi
+    if ($interactive) { try { Clear-Host } catch { $null = $_ } }
+    $width = Get-PstWidth -Max 90
+    Write-Host ''
+    Write-Host (' ' + (Format-PstGradient "$($g.Pointer)_ ps-tools" -Bold) + (Paint "  $($g.Dot)  $Caption  $($g.Dot)  v$($script:Pst.Version)" 'Dim'))
+    Write-Host ''
+
+    if ($Steps.Count -gt 1) {
+        $done = '●'; $here = '◉'; $todo = '○'
+        if ($env:PSTOOLS_ASCII) { $done = '*'; $here = '>'; $todo = 'o' }
+        $parts = @()
+        for ($i = 0; $i -lt $Steps.Count; $i++) {
+            if ($i -lt $Current) { $parts += (Paint $done 'Ok') + ' ' + (Paint $Steps[$i] 'Dim') }
+            elseif ($i -eq $Current) { $parts += (Paint $here 'Accent' -Bold) + ' ' + (Paint $Steps[$i] 'Title' -Bold) }
+            else { $parts += (Paint $todo 'Dim') + ' ' + (Paint $Steps[$i] 'Dim') }
+        }
+        $trail = ' ' + ($parts -join (Paint " $($g.H) " 'Dim'))
+        if ((Get-PstVisibleLength $trail) -gt $width) {
+            $trail = ' ' + (Paint "Étape $($Current + 1)/$($Steps.Count)" 'Accent' -Bold) + (Paint "  $($g.Dot)  $($Steps[$Current])" 'Dim')
+        }
+        Write-Host $trail
+        Write-Host (' ' + (Paint ($g.H * ($width - 2)) 'Dim'))
+        Write-Host ''
+    }
+    Write-Host ('  ' + (Paint $Title 'Title' -Bold))
+    if ($Text) {
+        foreach ($line in (Format-PstWrap $Text ($width - 6))) { Write-Host ('  ' + (Paint $line 'Dim')) }
+    }
+    Write-Host ''
+}
+
+function Read-PstText {
+    # Saisie de texte, avec valeur par défaut, masquage et validation.
+    # Retourne $null si la saisie est abandonnée (session non interactive).
+    param([string]$Prompt, [string]$Default = '', [switch]$Secret, [scriptblock]$Validate, [string]$ErrorMessage = 'Valeur invalide.')
+    if (-not (Test-PstInteractive)) { return $Default }
+    while ($true) {
+        $label = "  $(Paint '?' 'Accent' -Bold) $Prompt"
+        if ($Default -and -not $Secret) { $label += (Paint " ($Default)" 'Dim') }
+        if ($Secret) {
+            $secure = Read-Host $label -AsSecureString
+            $value = (New-Object System.Net.NetworkCredential '', $secure).Password
+        }
+        else { $value = Read-Host $label }
+        if ($null -eq $value) { return $null }
+        $value = $value.Trim()
+        if (-not $value) { $value = $Default }
+        if (-not $Validate -or (& $Validate $value)) { return $value }
+        Write-PstStatus err $ErrorMessage
+    }
+}
+
+function Show-PstSpinner {
+    # Affiche « … » pendant une opération courte ; renvoie le résultat du bloc.
+    param([string]$Message, [scriptblock]$Action)
+    if ($script:Pst.Ansi -and (Test-PstInteractive)) { Write-Host ("  " + (Paint "$($script:Pst.Glyph.Info) $Message..." 'Dim')) -NoNewline }
+    try { return (& $Action) }
+    finally { if ($script:Pst.Ansi -and (Test-PstInteractive)) { Write-Host "`r$($script:Pst.Esc)[K" -NoNewline } }
+}
+
+# ── Emplacement du profil et stratégie d'exécution ───────────────────────────
+# Le profil PowerShell vit dans « Documents ». En entreprise, ce dossier est
+# souvent redirigé vers un partage réseau (\\serveur\...) : avec la stratégie
+# RemoteSigned, Windows exige alors une signature et refuse de charger le profil.
+# On ne se fie donc pas à la stratégie affichée : on teste le chargement réel.
+
+function Get-PstProfileLocation {
+    # Retourne @{ Path; IsNetwork; Unc; Server } pour un fichier de profil.
+    param([string]$File)
+    $unc = $null
+    if ($File -like '\\*') { $unc = $File }
+    elseif ($script:Pst.IsWindows -and $File -match '^([A-Za-z]):') {
+        try {
+            $drive = Get-PSDrive -Name $Matches[1] -PSProvider FileSystem -ErrorAction Stop
+            if ($drive.DisplayRoot -like '\\*') { $unc = $drive.DisplayRoot.TrimEnd('\') + $File.Substring(2) }
+        }
+        catch { $null = $_ }
+    }
+    $server = $null
+    if ($unc) { $server = @($unc.TrimStart('\') -split '\\')[0] }
+    return @{ Path = $File; IsNetwork = [bool]$unc; Unc = $unc; Server = $server }
+}
+
+function Get-PstShellExecutable {
+    # Exécutable qui charge ce profil : Windows PowerShell 5.1 ou PowerShell 7.
+    param([string]$File)
+    if (-not $script:Pst.IsWindows -or $env:PSTOOLS_PROFILE) { return (Get-Process -Id $PID).Path }
+    if ($File -match '[\\/]WindowsPowerShell[\\/]') {
+        $exe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        if (Test-Path -LiteralPath $exe) { return $exe }
+        return $null
+    }
+    $pwsh = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pwsh) { return $pwsh.Source }
+    return $null
+}
+
+function Test-PstProfileLoadable {
+    # Vrai si PowerShell acceptera de charger un script situé dans le dossier de ce profil.
+    param([string]$File)
+    if ($env:PSTOOLS_TEST_PROFILE_BLOCKED) { return $false }   # réservé aux tests
+    $exe = Get-PstShellExecutable $File
+    if (-not $exe) { return $true }                              # ce shell n'est pas installé : rien à tester
+    $dir = Split-Path -Parent $File
+    $createdDir = $false
+    $probe = Join-Path $dir (".ps-tools-probe-" + [Guid]::NewGuid().ToString('N') + '.ps1')
+    # Les lanceurs ps-tools tournent en « Bypass », et cette préférence se transmet aux
+    # processus enfants : on la retire pour tester la stratégie réelle de l'utilisateur.
+    $savedPolicy = $env:PSExecutionPolicyPreference
+    try {
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null; $createdDir = $true }
+        [IO.File]::WriteAllText($probe, "'pst-probe-ok'", [Text.Encoding]::ASCII)
+        Remove-Item Env:PSExecutionPolicyPreference -ErrorAction SilentlyContinue
+        $output = (& $exe -NoLogo -NoProfile -NonInteractive -Command ". '$($probe -replace "'", "''")'" 2>&1 | Out-String)
+        return ($output -match 'pst-probe-ok')
+    }
+    catch { return $false }
+    finally {
+        if ($savedPolicy) { $env:PSExecutionPolicyPreference = $savedPolicy }
+        Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+        if ($createdDir) { Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+function Get-PstZoneKey {
+    # Clé du registre (zones Internet de l'utilisateur) correspondant à un serveur.
+    param([string]$Server)
+    $base = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap'
+    if ($Server -match '^\d{1,3}(\.\d{1,3}){3}$') { return @{ Key = "$base\Ranges\ps-tools"; Range = $Server } }
+    $labels = @($Server.ToLower() -split '\.' | Where-Object { $_ })
+    if ($labels.Count -le 2) { return @{ Key = "$base\Domains\$($labels -join '.')" } }
+    $domain = ($labels[($labels.Count - 2)..($labels.Count - 1)]) -join '.'
+    $sub = ($labels[0..($labels.Count - 3)]) -join '.'
+    return @{ Key = "$base\Domains\$domain\$sub" }
+}
+
+function Grant-PstShareTrust {
+    # Classe le serveur de fichiers en « Intranet local » pour ce compte : ses scripts
+    # sont alors traités comme locaux par RemoteSigned. Aucun droit administrateur requis.
+    param([string]$Server)
+    $zone = Get-PstZoneKey $Server
+    New-Item -Path $zone.Key -Force | Out-Null
+    if ($zone.Range) { New-ItemProperty -Path $zone.Key -Name ':Range' -Value $zone.Range -PropertyType String -Force | Out-Null }
+    New-ItemProperty -Path $zone.Key -Name 'file' -Value 1 -PropertyType DWord -Force | Out-Null
+}
+
+function Revoke-PstShareTrust {
+    param([string]$Server)
+    if (-not $Server) { return }
+    $zone = Get-PstZoneKey $Server
+    if (-not (Test-Path -LiteralPath $zone.Key)) { return }
+    Remove-ItemProperty -Path $zone.Key -Name 'file' -ErrorAction SilentlyContinue
+    if ($zone.Range) { Remove-Item -Path $zone.Key -Force -ErrorAction SilentlyContinue }
+    elseif (@((Get-Item -LiteralPath $zone.Key).GetValueNames()).Count -eq 0 -and @(Get-ChildItem -LiteralPath $zone.Key).Count -eq 0) {
+        Remove-Item -Path $zone.Key -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Set-PstUserPolicy {
+    # Change la stratégie d'exécution de l'utilisateur courant (sans droits administrateur).
+    param([string]$Policy)
+    try { Set-ExecutionPolicy -ExecutionPolicy $Policy -Scope CurrentUser -Force -ErrorAction Stop }
+    catch {
+        # Message attendu quand la session courante tourne déjà en Bypass : le réglage est bien enregistré.
+        if ("$($_.FullyQualifiedErrorId)" -notmatch 'ExecutionPolicyOverride') { throw }
+    }
+}
+
+function Test-PstWindowsTerminal {
+    if (-not $script:Pst.IsWindows -or -not $env:LOCALAPPDATA) { return $false }
+    if (Get-Command wt.exe -ErrorAction SilentlyContinue) { return $true }
+    return [bool](Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Packages') -Filter 'Microsoft.WindowsTerminal*' -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
+function Get-PstTerminalFragmentPath {
+    return (Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\ps-tools\ps-tools.json')
+}
+
+function Set-PstTerminalProfile {
+    # Ajoute à Windows Terminal un profil « PowerShell · ps-tools » qui charge l'intégration
+    # depuis l'installation locale, sans passer par le profil PowerShell (réseau).
+    param([string]$ShellScript)
+    $exe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $icon = 'ms-appx:///ProfileIcons/{61c54bbd-c2c6-5271-96e7-009a87ff44bf}.png'
+    $pwsh = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pwsh) { $exe = $pwsh.Source; $icon = 'ms-appx:///ProfileIcons/pwsh.png' }
+    $fragment = [ordered]@{
+        profiles = @([ordered]@{
+                guid              = '{5e3f1c2a-7b8d-4e6f-9a0b-1c2d3e4f5a6b}'
+                name              = 'PowerShell · ps-tools'
+                commandline       = "`"$exe`" -NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command `". '$($ShellScript -replace "'", "''")'`""
+                startingDirectory = '%USERPROFILE%'
+                icon              = $icon
+            })
+    }
+    $file = Get-PstTerminalFragmentPath
+    $dir = Split-Path -Parent $file
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    Write-PstJsonFile $file $fragment
+    return $file
+}
+
+function Remove-PstTerminalProfile {
+    if (-not $env:LOCALAPPDATA) { return $false }
+    $dir = Split-Path -Parent (Get-PstTerminalFragmentPath)
+    if (-not (Test-Path -LiteralPath $dir)) { return $false }
+    Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+    return $true
 }
 
 Initialize-PstConsole

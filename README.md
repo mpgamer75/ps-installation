@@ -31,7 +31,23 @@ Dans n'importe quel terminal PowerShell, **sans élévation** :
 irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1 | iex
 ```
 
-Les commandes sont utilisables immédiatement, et dans tout nouveau terminal (PowerShell comme `cmd`).
+Un assistant vous guide en quelques écrans, et rien n'est modifié avant le récapitulatif final :
+
+| Étape | Ce que vous choisissez |
+| --- | --- |
+| **Bienvenue** | Vérification de votre environnement (Windows, PowerShell, droits, profil local ou réseau). |
+| **Portée** | Pour vous seul ou pour tous les utilisateurs (proposé uniquement en administrateur). |
+| **Outils** | Les commandes à installer (toutes cochées par défaut). |
+| **Apparence** | Thème de couleurs : Nuit, Océan, Ambre, Clair (fond blanc) ou Mono. |
+| **Shell** | Invite enrichie, raccourcis clavier, commandes façon Unix, avec un correctif guidé si votre profil est bloqué. |
+| **IA** | Fournisseur, clé d'API (vérifiée en direct), modèle avec son prix, budget mensuel. |
+| **Résumé** | Récapitulatif, retour sur n'importe quelle étape, puis installation. |
+
+`Échap` revient à l'étape précédente. Tout se modifie ensuite avec `pst setup`, et chaque étape
+peut être laissée pour plus tard. Les commandes sont utilisables immédiatement, et dans tout nouveau
+terminal (PowerShell comme `cmd`).
+
+<img src="docs/wizard.png" alt="Assistant d'installation : étape Assistant IA" width="720">
 
 | Vous lancez l'installation… | Résultat |
 | --- | --- |
@@ -57,7 +73,7 @@ git clone https://github.com/mpgamer75/ps-installation
 | --- | --- |
 | `-Scope Auto\|CurrentUser\|AllUsers` | Périmètre d'installation (défaut : `Auto`). Aussi via `$env:PSTOOLS_SCOPE`. |
 | `-Tools a,b` | N'installe que les outils cités (`pst` est toujours inclus). |
-| `-Yes` | Aucune question. |
+| `-Yes` | Aucune question ni assistant (installation par défaut). |
 | `-NoPath` | Ne modifie pas le PATH. |
 | `-Shell` / `-NoShell` | Active l'intégration au shell sans demander / ne touche jamais au profil. |
 | `-InstallRoot <dossier>` | Dossier de destination personnalisé. |
@@ -95,7 +111,7 @@ garde son `grep`). Réglages : `PSTOOLS_NO_PROMPT=1`, `PSTOOLS_NO_ALIASES=1`, `P
 | Commande | Rôle | Équivalent Unix | Droits admin |
 | --- | --- | --- | --- |
 | **IA** | | | |
-| [`ask`](#ask) | Assistant Claude : questions, commandes, analyse de sorties | — | non |
+| [`ask`](#ask) | Assistant IA (Claude, GPT, Gemini, Mistral, Ollama…) : jetons et coût affichés | — | non |
 | **Système** | | | |
 | [`monitor`](#monitor) | Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus | `htop` | non |
 | [`sysinfo`](#sysinfo) | Carte d'identité de la machine | `neofetch` | non |
@@ -124,23 +140,44 @@ entièrement en utilisateur standard et en fait simplement davantage en administ
 
 ### ask
 
-L'assistant IA du terminal, propulsé par Claude.
+L'assistant IA du terminal, avec **l'IA de votre choix et votre propre clé d'API**.
 
 ```powershell
 ask "différence entre Get-ChildItem -Recurse et -Depth ?"
 ask -Cmd "les 10 plus gros fichiers de ce dossier"      # propose une commande : exécuter, copier ou annuler
 Get-Content .\erreur.log -Tail 80 | ask "que s'est-il passé ?"
-git diff | ask "rédige un message de commit"
-events -Json | ask "y a-t-il un problème sérieux ?"
+git diff | ask -Provider openai "rédige un message de commit"
+ask -Usage                                              # consommation : jetons, coût, budget
 ```
 
-Configuration, une fois : `ask -Setup` (ou la variable `ANTHROPIC_API_KEY`). La clé se crée sur
-[platform.claude.com](https://platform.claude.com/) ; elle est enregistrée chiffrée pour votre compte
-Windows. Modèle par défaut : `claude-opus-5-5`, modifiable avec `-Model` ou `ask -Setup`.
+<img src="docs/ask.png" alt="ask : réponse avec jetons et coût, puis tableau de consommation" width="720">
+
+| Fournisseur | Exemples de modèles | Clé |
+| --- | --- | --- |
+| Anthropic Claude | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-2` | [platform.claude.com](https://platform.claude.com/) |
+| OpenAI | `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6.1-terra`, `gpt-6-luna` | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Google Gemini | `gemini-4-hydrogen`, `gemini-4-neon`, `gemini-3.8-flash` | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| Mistral AI | `mistral-large-4`, `mistral-small-2603` | [console.mistral.ai](https://console.mistral.ai/api-keys) |
+| Groq | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` | [console.groq.com](https://console.groq.com/keys) |
+| DeepSeek | `deepseek-flash`, `deepseek-v4-pro` | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| xAI Grok | `grok-4.3`, `grok-4.7` | [console.x.ai](https://console.x.ai/) |
+| OpenRouter | des centaines de modèles, prix lus en direct | [openrouter.ai](https://openrouter.ai/settings/keys) |
+| Ollama | vos modèles locaux, gratuit et hors ligne | aucune |
+| Compatible OpenAI | LM Studio, vLLM, passerelle d'entreprise… | selon le service |
+
+- **Configuration** : `ask -Setup` (ou `pst setup`). La clé est vérifiée auprès du service, puis
+  enregistrée **chiffrée pour votre compte Windows** (DPAPI). Les variables d'environnement
+  habituelles (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`…) restent prioritaires.
+- **Changer d'IA pour une question** : `ask -Provider mistral "..."`, `ask -Model claude-haiku-5-5 "..."`.
+- **Coût** : chaque réponse se termine par une ligne `modèle · jetons entrée ► sortie · coût · durée`,
+  et `ask -Usage` affiche le bilan du jour, de la semaine et du mois, le coût par jour et par modèle,
+  et la jauge du budget mensuel. Les tarifs sont ceux des pages officielles (relevés le 20/11/2026,
+  avec les changements de prix déjà annoncés et les heures de pointe DeepSeek) ; ceux d'OpenRouter
+  sont lus en direct. Pour un modèle non référencé, l'assistant vous propose d'en saisir le prix.
 
 > `ask` est le seul outil qui envoie vos données à un service : la question, le texte passé par le
 > pipeline et un court contexte (version de Windows et de PowerShell, dossier courant) partent vers
-> l'API d'Anthropic, et l'usage est facturé sur votre compte. Rien n'est envoyé tant que vous ne
+> le fournisseur choisi, et l'usage est facturé sur votre compte. Rien n'est envoyé tant que vous ne
 > lancez pas la commande. `ask -Cmd` n'exécute jamais rien sans votre confirmation.
 
 ### monitor
@@ -315,6 +352,8 @@ administrateur, et la notification s'affiche même terminal fermé.
 
 ```powershell
 pst             # logo et liste des outils
+pst setup       # réglages : apparence, intégration au shell, assistant IA
+pst usage       # consommation de l'assistant IA
 pst menu        # lance un outil au clavier
 pst keys        # aide-mémoire des raccourcis
 pst shell on    # intégration au shell
@@ -347,7 +386,8 @@ Aucun outil ne s'arrête faute de droits : ce qui demande une élévation est si
 | --- | --- |
 | `NO_COLOR=1` | Désactive les couleurs |
 | `PSTOOLS_ASCII=1` | Remplace les caractères de dessin par de l'ASCII (polices anciennes) |
-| `ANTHROPIC_API_KEY` | Clé d'API utilisée par `ask` (prioritaire sur celle de `ask -Setup`) |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY` | Clés utilisées par `ask` (prioritaires sur celles de `ask -Setup`) |
+| `PSTOOLS_THEME` | Thème pour la session : `nuit`, `ocean`, `ambre`, `clair`, `mono` |
 
 ## Mise à jour et désinstallation
 
@@ -381,20 +421,44 @@ Une installation de la version 1 est détectée et retirée elle aussi (son retr
 | Symptôme | Solution |
 | --- | --- |
 | Commande introuvable après l'installation | Ouvrez un nouveau terminal, puis `pst doctor`. |
+| Erreur rouge au démarrage : « profile.ps1 n'est pas signé numériquement » | Voir [Profil sur un partage réseau](#profil-sur-un-partage-réseau) : `pst update` puis `pst shell on`. |
 | Caractères étranges à la place des cadres | Utilisez Windows Terminal, ou définissez `PSTOOLS_ASCII=1`. |
 | « L'exécution de scripts est désactivée » | Sans effet sur les commandes installées (elles passent par des lanceurs `.cmd`). Pour lancer `install.ps1` depuis un clone : `powershell -ExecutionPolicy Bypass -File .\install.ps1`. |
 | Échec du téléchargement (proxy d'entreprise) | Clonez le dépôt et lancez `.\install.ps1`. |
+
+### Profil sur un partage réseau
+
+En entreprise, le dossier « Documents » est souvent redirigé vers un serveur
+(`\\serveur\users\...\Documents`). Le profil PowerShell s'y trouve aussi, et Windows traite alors
+ce fichier comme venant d'Internet : avec la stratégie `RemoteSigned`, il exige une signature et
+affiche à chaque ouverture du terminal l'erreur « n'est pas signé numériquement ».
+
+ps-tools ne se fie plus à la stratégie affichée : il **teste réellement le chargement** du profil
+avant d'y écrire. Un profil bloqué n'est jamais modifié (le bloc d'une version précédente en est
+même retiré), donc plus aucune erreur au démarrage. `pst shell on` (ou l'assistant) propose alors :
+
+| Solution | Effet | Annulation |
+| --- | --- | --- |
+| **Faire confiance au partage** (recommandé) | Classe ce serveur de fichiers en zone « Intranet local » pour votre compte : ses scripts sont traités comme locaux. | `pst shell off` |
+| Autoriser les scripts non signés | Stratégie `Bypass` pour votre compte uniquement. | `pst shell off` (stratégie précédente rétablie) |
+| Profil Windows Terminal « ps-tools » | Un onglet dédié charge l'intégration depuis l'installation locale, sans toucher au partage ni à la stratégie. | `pst shell off` |
+
+Aucune de ces solutions ne demande de droits administrateur. Si votre service informatique impose
+ces réglages par stratégie de groupe, l'outil le détecte et le dit ; le profil Windows Terminal reste
+alors la solution. `pst doctor` signale un profil bloqué.
 
 ## Développement
 
 ```
 install.ps1 / uninstall.ps1   amorces en ASCII pur (compatibles « irm | iex »)
 manifest.json                 liste des outils et version
-src/lib/PsTools.ps1           bibliothèque partagée : couleurs, cadres, menus, écran temps réel
+src/lib/PsTools.ps1           bibliothèque partagée : thèmes, cadres, menus, configuration, profil
+src/lib/PsTools.AI.ps1        assistant IA : fournisseurs, prix, flux, consommation
+src/lib/PsTools.Wizard.ps1    assistant d'installation et « pst setup »
 src/setup.ps1                 moteur d'installation et de désinstallation
 src/shell/PsTools.Shell.ps1   intégration au shell : invite, raccourcis, alias, favoris
 src/tools/*.ps1               un fichier par commande
-tests/                        tests Pester et données simulées
+tests/                        tests Pester, données simulées, faux service d'IA (Python)
 ```
 
 ```powershell

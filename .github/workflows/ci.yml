@@ -94,6 +94,8 @@ jobs:
           Assert-Run 'logtail'        { cmd /c logtail "$env:TEMP\pst-ci.log" -NoFollow } 'ERROR boum'
           Assert-Run 'ask (sans clef)' { cmd /c ask bonjour }               'ask -Setup' -AnyExitCode
           Assert-Run 'pst keys'       { cmd /c pst keys }                   'Alt\+A'
+          Assert-Run 'pst usage'      { cmd /c pst usage }                  'consommation'
+          Assert-Run 'ask -Status'    { cmd /c ask -Status }                'Fournisseur'
           # Integration au shell : le profil modifie doit se charger dans un shell neuf.
           Assert-Run 'pst shell on'   { cmd /c pst shell on -Yes }          'Profil'
           $exe = (Get-Process -Id $PID).Path
@@ -105,6 +107,43 @@ jobs:
           Assert-Run 'remind list'    { cmd /c remind list }               'Test CI'
           Assert-Run 'remind rm'      { cmd /c remind rm 1 }               'supprim'
           if (Get-ScheduledTask -TaskName 'PsTools_Reminder_*' -ErrorAction SilentlyContinue) { throw 'tâche planifiée non supprimée' }
+
+      # Scénario réel d'entreprise : profil PowerShell sur un partage réseau, stratégie RemoteSigned.
+      # Le partage administratif \\127.0.0.1\C$ est vu comme « distant » par Windows.
+      - name: Profil sur un partage réseau
+        if: runner.os == 'Windows'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try { Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force } catch { Write-Host $_ }
+          $dir = Join-Path $env:TEMP 'pst-unc'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $unc = '\\127.0.0.1\' + ($dir -replace '^([A-Za-z]):', '$1$')
+          if (-not (Test-Path $unc)) { Write-Host '::warning::partage administratif indisponible, test ignore'; exit 0 }
+          $env:PSTOOLS_PROFILE = Join-Path $unc 'profile.ps1'
+          $env:PSTOOLS_DATA = Join-Path $env:TEMP 'pst-unc-data'
+          . ./src/lib/PsTools.ps1; . ./src/lib/PsTools.AI.ps1; . ./src/lib/PsTools.Wizard.ps1
+          $app = (Resolve-Path ./src).Path
+          if (Test-PstProfileLoadable $env:PSTOOLS_PROFILE) { Write-Host '::warning::le partage n est pas traite comme distant sur ce runner, test ignore'; exit 0 }
+          # 1. Profil bloqué : rien n'est écrit (donc aucune erreur au démarrage du terminal).
+          $r = Enable-PstShell -AppRoot $app
+          if ($r.Blocked.Count -ne 1 -or (Test-Path $env:PSTOOLS_PROFILE)) { throw 'un profil bloque a ete modifie' }
+          # 2. Solution « partage de confiance » (zone Intranet).
+          Grant-PstShareTrust '127.0.0.1'
+          $trusted = Test-PstProfileLoadable $env:PSTOOLS_PROFILE
+          Revoke-PstShareTrust '127.0.0.1'
+          if ($trusted) { Write-Host 'zone Intranet : OK' } else { Write-Host '::warning::la zone Intranet par adresse IP est sans effet sur ce runner' }
+          # 3. Solution « Bypass pour l'utilisateur » : doit rendre le profil chargeable.
+          Set-PstUserPolicy 'Bypass'
+          if (-not (Test-PstProfileLoadable $env:PSTOOLS_PROFILE)) { throw 'Bypass sans effet' }
+          $r = Enable-PstShell -AppRoot $app
+          if ($r.Written.Count -ne 1) { throw 'profil non ecrit apres correctif' }
+          Remove-Item Env:PSExecutionPolicyPreference -ErrorAction SilentlyContinue
+          $exe = (Get-Process -Id $PID).Path
+          $loaded = (& $exe -NoLogo -NoProfile -Command ". '$env:PSTOOLS_PROFILE'; [bool](Get-Command jump -ErrorAction SilentlyContinue)" 2>&1 | Out-String)
+          Write-Host $loaded
+          if ($loaded -notmatch 'True') { throw 'le profil reseau ne charge pas l integration' }
+          $null = Disable-PstShell
+          Set-PstUserPolicy 'RemoteSigned'
 
       - name: Désinstallation
         if: runner.os == 'Windows'

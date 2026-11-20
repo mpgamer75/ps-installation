@@ -1,5 +1,30 @@
 # Journal des modifications
 
+## 2.3.0
+
+### Assistant d'installation
+- Installation guidée en sept écrans : environnement, portée, outils, apparence, intégration au shell,
+  assistant IA, récapitulatif. Retour arrière avec Échap ; rien n'est modifié avant la confirmation.
+- `pst setup` : centre de configuration pour tout régler plus tard (apparence, shell, IA, test).
+- Thèmes de couleurs : Nuit, Océan, Ambre, Clair (terminaux à fond blanc), Mono ; l'invite du shell suit.
+
+### Assistant IA multi-fournisseurs
+- `ask` fonctionne avec Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, OpenRouter,
+  Ollama (local) et tout service compatible OpenAI. Clé vérifiée en direct, enregistrée chiffrée (DPAPI).
+- Jetons et coût affichés après chaque réponse ; `ask -Usage` / `pst usage` : bilan par période et par
+  modèle, coût par jour, budget mensuel avec alertes. Tarifs officiels datés, paliers longs, changements
+  de prix annoncés, heures de pointe ; prix OpenRouter lus en direct ; prix personnalisés possibles.
+- `ask -Provider` et `ask -Model` pour changer d'IA le temps d'une question ; `ask -Status`.
+
+### Corrigé
+- **Profil PowerShell sur un partage réseau** (dossier Documents redirigé) : `pst shell on` écrivait dans un
+  profil que Windows refusait ensuite de charger (« n'est pas signé numériquement »). Le chargement est
+  désormais testé réellement avant toute écriture ; un profil bloqué n'est jamais modifié (l'ancien bloc
+  est retiré, plus d'erreur au démarrage) et trois solutions sont proposées, toutes réversibles :
+  partage de confiance (zone Intranet), stratégie Bypass pour le compte, profil Windows Terminal dédié.
+- La vérification de stratégie ignorait la préférence « Bypass » héritée des lanceurs : le test est fait
+  avec la stratégie réelle de l'utilisateur.
+
 ## 2.2.0
 
 - **pst-uninstall** : commande dédiée pour désinstaller ps-tools (commandes, PATH, intégration au shell,
