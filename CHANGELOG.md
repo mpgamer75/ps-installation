@@ -1,5 +1,35 @@
 # Journal des modifications
 
+## 2.4.0
+
+### Mode anglais
+- Toute l'interface en français ou en anglais : outils, aide, tableau de bord, assistant d'installation,
+  intégration au shell, assistant IA (y compris ses consignes au modèle). Langue choisie à l'installation,
+  modifiable avec `pst setup`, sinon celle de Windows ; `PSTOOLS_LANG` pour une session.
+- Dictionnaires par fichier (`src/i18n/en`), repli automatique sur le français, vérificateur
+  `build/Test-Translations.ps1` exécuté par la CI.
+
+### Tableau de bord et nouvelle interface
+- `pst` ouvre un tableau de bord plein écran inspiré de l'interface de DefenseClaw : onglets numérotés par
+  catégorie, liste des outils, fiche avec exemples, lancement direct, filtre `/`, barre des touches et
+  bandeau d'état (shell, IA, budget, tâches du jour).
+- Nouveau thème par défaut « Cyan » (panneaux sombres, accent cyan) ; titres de panneaux en capitales,
+  ligne choisie surlignée, ✓ ✗ ▸ dans Windows Terminal.
+
+### Au quotidien
+- **todo** (tâches, échéances en langage courant, priorités, étiquettes), **note** (journal Markdown),
+  **timer** (minuteur, chronomètre, Pomodoro), **weather**, **calc** (calculs, pourcentages, unités,
+  devises hors ligne), **awake** (empêche la mise en veille).
+
+### Fichiers, code, réseau
+- **tidy** (range les Téléchargements, avec annulation), **dupes** (doublons vers la corbeille),
+  **gitignore**, **cheat** (exemples tldr hors ligne), **paths** (diagnostic et réparation du PATH),
+  **speed** (test de débit avec verdict).
+
+### Corrigé
+- Un nombre égal à zéro n'était pas inséré dans certains messages.
+- « Modifier une étape » dans l'assistant d'installation ouvrait l'étape suivante.
+
 ## 2.3.0
 
 ### Assistant d'installation

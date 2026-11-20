@@ -53,6 +53,12 @@ function Get-ToolDescription {
     return [string]$Tool.description
 }
 
+function Get-ToolExamples {
+    param($Tool)
+    if ($script:Pst.Lang -eq 'en' -and $Tool.examples_en) { return @($Tool.examples_en) }
+    return @($Tool.examples)
+}
+
 function Get-CategoryLabel {
     # Les catégories du manifeste sont en français ; libellé affiché selon la langue.
     param([string]$Category)
@@ -71,7 +77,7 @@ function Get-CategoryLabel {
 
 $script:CategoryOrder = @('Au quotidien', 'IA', 'Code', 'Fichiers', 'Système', 'Réseau', 'Gestion')
 
-function Sort-ByCategory {
+function Get-SortedByCategory {
     param($Tools)
     return @($Tools | Sort-Object { $i = [array]::IndexOf($script:CategoryOrder, [string]$_.category); if ($i -lt 0) { 99 } else { $i } }, name)
 }
@@ -79,7 +85,7 @@ function Sort-ByCategory {
 # ── Accueil (texte) ──────────────────────────────────────────────────────────
 
 function Show-ToolList {
-    $tools = Sort-ByCategory @(Get-InstalledTools)
+    $tools = Get-SortedByCategory @(Get-InstalledTools)
     $nameWidth = 0
     foreach ($t in $tools) { $nameWidth = [Math]::Max($nameWidth, $t.name.Length) }
     foreach ($category in @($tools | ForEach-Object { $_.category } | Select-Object -Unique)) {
@@ -216,7 +222,7 @@ function Get-HubFrame {
             $detail += $meta
             $detail += ''
             $detail += Paint (L 'EXEMPLES') 'Accent' -Bold
-            $examples = @($t.examples)
+            $examples = @(Get-ToolExamples $t)
             if (-not $examples.Count) { $examples = @("$($t.name) -Help") }
             foreach ($ex in $examples) { $detail += '  ' + (Paint '›' 'Accent') + ' ' + (Paint (Limit-PstText $ex ($inner - 4)) 'Ok') }
             $detail += ''
@@ -240,12 +246,21 @@ function Get-HubFrame {
         $lines.Add((Paint (Format-PstPad (' / ' + (L 'filtrer :') + " $($State.Filter)_   " + (L 'Entrée garder · Échap effacer')) $width) 'Title' -Bold -Bg 'Selected'))
     }
     else {
-        $lines.Add((Format-PstKeyBar -Bar -Width $width @(
-                    @("$($g.Up)$($g.Down)", (L 'choisir')), @((L 'Entrée'), (L 'lancer')), @('1-9', (L 'onglet')), @('/', (L 'filtrer')),
-                    @('s', (L 'réglages')), @('u', (L 'conso IA')), @('k', (L 'raccourcis')), @('d', (L 'diagnostic')), @('q', (L 'quitter')))))
+        # Touches secondaires retirées en premier si la largeur manque ; « q quitter » reste toujours.
+        $keys = [System.Collections.ArrayList]@(
+            @("$($g.Up)$($g.Down)", (L 'choisir')), @((L 'Entrée'), (L 'lancer')), @('1-9', (L 'onglet')), @('/', (L 'filtrer')),
+            @('s', (L 'réglages')), @('u', (L 'conso IA')), @('k', (L 'raccourcis')), @('d', (L 'diagnostic')))
+        $quit = @('q', (L 'quitter'))
+        while ($keys.Count -gt 3) {
+            $plain = ' ' + (L 'TOUCHES') + '  ' + ((@($keys) + , $quit | ForEach-Object { "$($_[0]) $($_[1])" }) -join ' | ')
+            if ($plain.Length -le $width) { break }
+            $keys.RemoveAt($keys.Count - 1)
+        }
+        $lines.Add((Format-PstKeyBar -Bar -Width $width (@($keys) + , $quit)))
     }
     $status = ' ' + $State.Message
     foreach ($item in (Get-StatusItems)) {
+        if ((Get-PstVisibleLength $status) + (Get-PstVisibleLength $item.Text) + 6 -gt $width) { break }
         $dot = Paint $g.Bullet $(if ($item.On) { 'Ok' } else { 'Dim' }) -Bg 'Raised'
         $status += (Paint " $($g.Sep) " 'Border' -Bg 'Raised') + $dot + (Paint " $($item.Text)" 'Secondary' -Bg 'Raised')
     }
@@ -276,7 +291,7 @@ function Invoke-HubTool {
     $arguments = @()
     if ($HelpOnly) { $arguments = @('-Help') }
     else {
-        $examples = @($Tool.examples)
+        $examples = @(Get-ToolExamples $Tool)
         if ($examples.Count) { Write-Host (Paint ('   ' + (L 'ex. :') + ' ' + ($examples[0] -replace "^$([regex]::Escape($Tool.name))\s*", '')) 'Dim') }
         $hint = L 'Arguments (Entrée = aucun)'
         if ($Tool.args -eq 'required') { $hint = L 'Arguments' }
@@ -318,7 +333,7 @@ function Invoke-HubAction {
 }
 
 function Show-Hub {
-    $all = @(Sort-ByCategory @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' }))
+    $all = @(Get-SortedByCategory @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' }))
     $categories = @($script:CategoryOrder | Where-Object { $c = $_; @($all | Where-Object { $_.category -eq $c }).Count })
     $state = @{ Tabs = @('Tout') + $categories; Tab = 0; Index = 0; Scroll = 0; Filter = ''; Filtering = $false; Message = (L 'Prêt.'); Visible = @(); Counts = @() }
     $state.Counts = @($state.Tabs | ForEach-Object { $c = $_; if ($c -eq 'Tout') { $all.Count } else { @($all | Where-Object { $_.category -eq $c }).Count } })
@@ -381,7 +396,7 @@ function Show-Hub {
                 '^j$' { $state.Index = [Math]::Min([Math]::Max(0, $state.Visible.Count - 1), $state.Index + 1) }
                 '^k$' { $r = Invoke-HubAction @('keys'); if ($r -eq 'quit') { return }; $state.Message = $r }
                 '^h$' { if ($state.Visible.Count) { $r = Invoke-HubTool $state.Visible[$state.Index] -HelpOnly; if ($r -eq 'quit') { return }; $state.Message = $r } }
-                '^s$' { $r = Invoke-HubAction @('setup'); if ($r -eq 'quit') { return }; $state.Message = $r; $all = @(Sort-ByCategory @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' })); & $refresh }
+                '^s$' { $r = Invoke-HubAction @('setup'); if ($r -eq 'quit') { return }; $state.Message = $r; $all = @(Get-SortedByCategory @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' })); & $refresh }
                 '^u$' { $r = Invoke-HubAction @('usage'); if ($r -eq 'quit') { return }; $state.Message = $r }
                 '^d$' { $r = Invoke-HubAction @('doctor'); if ($r -eq 'quit') { return }; $state.Message = $r }
             }

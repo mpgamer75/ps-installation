@@ -63,7 +63,13 @@
         "Get-Content erreur.log | ask \"que s'est-il passé ?\"",
         "ask -Usage"
       ],
-      "args": "required"
+      "args": "required",
+      "examples_en": [
+        "ask \"how do I rename 200 photos by date?\"",
+        "ask -Cmd \"the 10 biggest files here\"",
+        "Get-Content error.log | ask \"what happened?\"",
+        "ask -Usage"
+      ]
     },
     {
       "name": "monitor",
@@ -190,6 +196,11 @@
         "dsize",
         "dsize C:\\Users\\moi -Top 25",
         "dsize D:\\ -Files"
+      ],
+      "examples_en": [
+        "dsize",
+        "dsize C:\\Users\\me -Top 25",
+        "dsize D:\\ -Files"
       ]
     },
     {
@@ -236,6 +247,11 @@
         "remind add \"Appeler le dentiste\" -At \"demain 9:00\"",
         "remind add \"Sortir le linge\" -In 40m",
         "remind list"
+      ],
+      "examples_en": [
+        "remind add \"Call the dentist\" -At \"tomorrow 9:00\"",
+        "remind add \"Take the laundry out\" -In 40m",
+        "remind list"
       ]
     },
     {
@@ -258,6 +274,11 @@
       "description": "Trouve les fichiers en double et libère l'espace perdu",
       "description_en": "Finds duplicate files and reclaims wasted space",
       "examples": [
+        "dupes ~\\Pictures",
+        "dupes D:\\ -Min 10MB -DryRun",
+        "dupes . -Include *.jpg,*.png"
+      ],
+      "examples_en": [
         "dupes ~\\Pictures",
         "dupes D:\\ -Min 10MB -DryRun",
         "dupes . -Include *.jpg,*.png"
@@ -286,6 +307,12 @@
         "todo add \"Rapport mensuel !!\" -Due vendredi +travail",
         "todo",
         "todo done 1"
+      ],
+      "examples_en": [
+        "todo add \"Buy bread\" -Due tomorrow",
+        "todo add \"Monthly report !!\" -Due friday +work",
+        "todo",
+        "todo done 1"
       ]
     },
     {
@@ -299,6 +326,12 @@
         "note",
         "note -Search assurance",
         "Get-Clipboard | note"
+      ],
+      "examples_en": [
+        "note \"Idea: compare insurance quotes\"",
+        "note",
+        "note -Search insurance",
+        "Get-Clipboard | note"
       ]
     },
     {
@@ -309,6 +342,11 @@
       "description_en": "Timer, stopwatch and Pomodoro with alert",
       "examples": [
         "timer 25m -Label \"Thé\"",
+        "timer -Pomodoro",
+        "timer -Stopwatch"
+      ],
+      "examples_en": [
+        "timer 25m -Label \"Tea\"",
         "timer -Pomodoro",
         "timer -Stopwatch"
       ]
@@ -349,6 +387,54 @@
         "paths which python",
         "paths clean -DryRun",
         "paths add C:\\Tools\\bin"
+      ]
+    },
+    {
+      "name": "weather",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Météo actuelle et prévisions à trois jours, ville mémorisée",
+      "description_en": "Current weather and 3-day forecast, remembered city",
+      "examples": [
+        "weather",
+        "weather Lyon",
+        "weather -Set Bordeaux"
+      ],
+      "examples_en": [
+        "weather",
+        "weather London",
+        "weather -Set Boston"
+      ]
+    },
+    {
+      "name": "calc",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Calculatrice, pourcentages, conversions d'unités et de devises",
+      "description_en": "Calculator, percentages, unit and currency conversions",
+      "examples": [
+        "calc \"(12,5 + 7) * 3\"",
+        "calc \"15% de 80\"",
+        "calc \"10 km en mi\"",
+        "calc \"100 EUR en USD\""
+      ],
+      "examples_en": [
+        "calc \"(12.5 + 7) * 3\"",
+        "calc \"15% of 80\"",
+        "calc \"10 km to mi\"",
+        "calc \"100 EUR to USD\""
+      ]
+    },
+    {
+      "name": "speed",
+      "category": "Réseau",
+      "admin": "non",
+      "description": "Test de débit : latence, téléchargement, envoi, verdict clair",
+      "description_en": "Speed test: latency, download, upload, plain verdict",
+      "examples": [
+        "speed",
+        "speed -NoUpload",
+        "speed -Json"
       ]
     }
   ]

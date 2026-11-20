@@ -293,7 +293,7 @@ Describe 'paths' {
         $text = (Invoke-PathTool @() @($script:A, $script:Missing, $script:A)).Output
         $text | Should -Match 'introuvable'
         $text | Should -Match 'doublon de n°'
-        $text | Should -Match 'path clean -DryRun'
+        $text | Should -Match 'paths clean -DryRun'
     }
 
     It 'which indique la copie qui l''emporte et celles masquées' {

@@ -247,12 +247,18 @@ function Get-OrderedTasks {
     $today = (Get-Date).Date
     $groupRank = @{ overdue = 0; today = 1; upcoming = 2; someday = 3; done = 4 }
     $prioRank = @{ high = 0; medium = 1; '' = 2; low = 3 }
+    # Départage final par ordre d'ajout : deux tâches créées dans la même seconde gardent
+    # toujours le même numéro (Sort-Object n'est pas stable sous Windows PowerShell 5.1).
+    $position = @{}
+    $k = 0
+    foreach ($t in @($List)) { if ($t) { $position[[string]$t.Id] = $k; $k++ } }
     $open = @(@($List) | Where-Object { -not $_.Done } | Sort-Object `
             @{ Expression = { $groupRank[(Get-TaskGroup $_ $today)] } },
             @{ Expression = { if ($_.Due) { $_.Due } else { '9999' } } },
             @{ Expression = { $prioRank[[string]$_.Priority] } },
-            @{ Expression = { $_.Created } })
-    $done = @(@($List) | Where-Object { $_.Done } | Sort-Object @{ Expression = { $_.DoneAt }; Descending = $true })
+            @{ Expression = { $_.Created } },
+            @{ Expression = { $position[[string]$_.Id] } })
+    $done = @(@($List) | Where-Object { $_.Done } | Sort-Object @{ Expression = { $_.DoneAt }; Descending = $true }, @{ Expression = { $position[[string]$_.Id] } })
     $out = @()
     $n = 1
     foreach ($t in @($open + $done)) {

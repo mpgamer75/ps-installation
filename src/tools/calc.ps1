@@ -15,11 +15,14 @@ param(
     [switch]$Copy,
     [switch]$Json,
     [switch]$Help,
-    [Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Expression
+    [Parameter(Position = 0, ValueFromRemainingArguments = $true)][object[]]$Expression,
+    # Reçoit le pipeline (une expression par ligne) ; lu plus bas via `$input.
+    [Parameter(ValueFromPipeline = $true)][object]$InputObject
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
 Import-PstStrings 'calc'
+$piped = @($input | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
 
 # « calc 3,5 * 2 » sans guillemets : PowerShell transmet « 3,5 » comme un tableau.
 $parts = @()
@@ -677,8 +680,8 @@ $script:Ans = $null
 # ── Mode interactif ou entrée redirigée ──────────────────────────────────────
 
 if ($parts.Count -eq 0) {
-    if (-not (Test-PstInteractive)) {
-        $lines = @($input | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+    if ($piped.Count -gt 0 -or -not (Test-PstInteractive)) {
+        $lines = $piped
         if ($lines.Count -eq 0) {
             Write-PstStatus err (L 'Aucune expression. Exemple : calc "2 + 2" (calc -Help pour l''aide).')
             exit 1

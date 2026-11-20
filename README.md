@@ -8,18 +8,19 @@
  ██▀  ▄▄▄▄▄  ██     █████▀         ██   ▀████▀ ▀████▀ ██████ █████▀
 ```
 
-**La boîte à outils du terminal Windows**
+**La boîte à outils du terminal Windows** · [English version](README.en.md)
 
-Dix-huit commandes et une intégration au shell qui apportent à PowerShell le confort des terminaux
-Linux et macOS : assistant IA, observation, outils de développement, raccourcis.
-Installation en une ligne, **avec ou sans droits administrateur**.
+Une trentaine de commandes pour la vie de tous les jours et pour le code : tâches, notes, minuteur,
+météo, calculatrice, rangement des téléchargements, assistant IA, Git, système, réseau. Un tableau de
+bord plein écran, une intégration au shell, **en français ou en anglais**, avec ou sans droits
+administrateur.
 
 [![CI](https://github.com/mpgamer75/ps-installation/actions/workflows/ci.yml/badge.svg)](https://github.com/mpgamer75/ps-installation/actions/workflows/ci.yml)
 ![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%20%7C%207-5391FE?logo=powershell&logoColor=white)
 ![Windows 10 / 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-<img src="docs/pst.png" alt="Commande pst : logo et liste des outils" width="760">
+<img src="docs/hub.png" alt="Tableau de bord pst : onglets, liste des outils, fiche détaillée" width="820">
 
 </div>
 
@@ -38,7 +39,8 @@ Un assistant vous guide en quelques écrans, et rien n'est modifié avant le ré
 | **Bienvenue** | Vérification de votre environnement (Windows, PowerShell, droits, profil local ou réseau). |
 | **Portée** | Pour vous seul ou pour tous les utilisateurs (proposé uniquement en administrateur). |
 | **Outils** | Les commandes à installer (toutes cochées par défaut). |
-| **Apparence** | Thème de couleurs : Nuit, Océan, Ambre, Clair (fond blanc) ou Mono. |
+| **Langue** | Français ou English : tous les écrans suivants changent aussitôt. |
+| **Apparence** | Thème de couleurs : Cyan (défaut, panneaux sombres façon DefenseClaw), Nuit, Océan, Ambre, Clair (fond blanc) ou Mono. |
 | **Shell** | Invite enrichie, raccourcis clavier, commandes façon Unix, avec un correctif guidé si votre profil est bloqué. |
 | **IA** | Fournisseur, clé d'API (vérifiée en direct), modèle avec son prix, budget mensuel. |
 | **Résumé** | Récapitulatif, retour sur n'importe quelle étape, puis installation. |
@@ -108,35 +110,99 @@ garde son `grep`). Réglages : `PSTOOLS_NO_PROMPT=1`, `PSTOOLS_NO_ALIASES=1`, `P
 
 ## Les outils
 
-| Commande | Rôle | Équivalent Unix | Droits admin |
+Tapez simplement `pst` : le **tableau de bord** classe les outils par onglets (1 Au quotidien,
+2 IA, 3 Code…), montre la fiche et les exemples de chacun, et les lance avec `Entrée`. `/` filtre,
+`s` ouvre les réglages, `q` quitte.
+
+| Commande | Rôle | Équivalent | Admin |
 | --- | --- | --- | --- |
+| **Au quotidien** | | | |
+| [`todo`](#todo-note-timer) | Liste de tâches : échéances (« demain », « lundi »), priorités, étiquettes | todo.txt | non |
+| [`note`](#todo-note-timer) | Notes rapides et journal, un fichier Markdown par jour, recherche | — | non |
+| [`timer`](#todo-note-timer) | Minuteur à grands chiffres, chronomètre, Pomodoro, alerte | — | non |
+| [`remind`](#remind) | Rappels avec notification Windows, même terminal fermé | `at` | non |
+| [`weather`](#weather-calc-speed) | Météo actuelle et prévisions à trois jours | wttr.in | non |
+| [`calc`](#weather-calc-speed) | Calculatrice, pourcentages, unités, devises (hors ligne possible) | `bc`, `units` | non |
+| [`awake`](#tidy-dupes-awake) | Empêche la mise en veille (présentation, téléchargement) | `caffeinate` | non |
 | **IA** | | | |
 | [`ask`](#ask) | Assistant IA (Claude, GPT, Gemini, Mistral, Ollama…) : jetons et coût affichés | — | non |
+| **Code** | | | |
+| [`gst`](#gst-et-loc) | Tableau de bord Git : branche, synchronisation, modifications | `git status` | non |
+| [`loc`](#gst-et-loc) | Lignes de code par langage, notes TODO/FIXME | `cloc` | non |
+| [`gitignore`](#gitignore-cheat-paths) | Génère et complète le `.gitignore` d'après le projet | gitignore.io | non |
+| [`cheat`](#gitignore-cheat-paths) | Exemples prêts à copier d'une commande, hors ligne | `tldr` | non |
+| [`serve`](#serve) | Serveur web local instantané pour un dossier | `http.server` | optionnels |
+| [`dev`](#dev) | uuid, mots de passe, hash, base64, URL, JSON, JWT, dates | `uuidgen`, `jq`… | non |
+| **Fichiers** | | | |
+| [`tidy`](#tidy-dupes-awake) | Range un dossier en vrac (Téléchargements) par type ou par mois, avec annulation | — | non |
+| [`dupes`](#tidy-dupes-awake) | Trouve les doublons et libère l'espace (corbeille) | `fdupes` | non |
+| [`dsize`](#dsize) | Classe le contenu d'un dossier par taille | `du -sh` | optionnels |
 | **Système** | | | |
 | [`monitor`](#monitor) | Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus | `htop` | non |
 | [`sysinfo`](#sysinfo) | Carte d'identité de la machine | `neofetch` | non |
 | [`clean`](#clean) | Nettoyeur avec aperçu avant suppression | — | optionnels |
-| **Observation** | | | |
+| [`paths`](#gitignore-cheat-paths) | Inspecte et répare le PATH : doublons, dossiers disparus | — | optionnels |
 | [`watch`](#watch) | Relance une commande et surligne ce qui change | `watch -d` | non |
 | [`logtail`](#logtail) | Suit un journal en direct, couleurs par niveau, filtre | `tail -f` | non |
-| [`events`](#events) | Erreurs et avertissements récents de Windows, regroupés | `journalctl -p err` | optionnels |
-| **Code** | | | |
-| [`gst`](#gst-et-loc) | Tableau de bord Git : branche, synchronisation, modifications | `git status` + `log` | non |
-| [`loc`](#gst-et-loc) | Lignes de code par langage, notes TODO/FIXME | `cloc`, `tokei` | non |
-| [`serve`](#serve) | Serveur web local instantané pour un dossier | `python -m http.server` | optionnels |
-| [`dev`](#dev) | uuid, mots de passe, hash, base64, URL, JSON, JWT, dates | `uuidgen`, `sha256sum`, `jq`… | non |
-| **Fichiers et réseau** | | | |
-| [`dsize`](#dsize) | Classe le contenu d'un dossier par taille | `du -sh * \| sort -h` | optionnels |
-| [`ping-mon`](#ping-mon) | Latence de plusieurs hôtes : gigue, pertes, historique | `mtr`, `gping` | non |
+| [`events`](#events) | Erreurs et avertissements récents de Windows, regroupés | `journalctl` | optionnels |
+| **Réseau** | | | |
+| [`speed`](#weather-calc-speed) | Test de débit avec verdict clair (« OK pour la visio HD ») | speedtest | non |
+| [`ping-mon`](#ping-mon) | Latence de plusieurs hôtes : gigue, pertes, historique | `mtr` | non |
 | [`netinfo`](#netinfo) | Interfaces, adresses, DNS, Wi-Fi, IP publique | `ip a` | non |
-| [`ports`](#ports) | Ports en écoute et processus associés | `ss -ltnp`, `lsof -i` | optionnels |
-| **Productivité** | | | |
-| [`remind`](#remind) | Rappels avec notifications Windows | `at` | non |
-| [`pst`](#pst) | Menu, aide-mémoire, intégration au shell, diagnostic, mise à jour | — | non |
+| [`ports`](#ports) | Ports en écoute et processus associés | `ss -ltnp` | optionnels |
+| **Gestion** | | | |
+| [`pst`](#pst) | Tableau de bord, réglages, raccourcis, intégration au shell, mise à jour | — | non |
 | [`pst-uninstall`](#mise-à-jour-et-désinstallation) | Désinstalle ps-tools | — | non |
 
 Chaque commande accepte `-Help` (ou `--help`). « Optionnels » signifie que l'outil fonctionne
 entièrement en utilisateur standard et en fait simplement davantage en administrateur.
+
+### todo, note, timer
+
+```powershell
+todo add "Acheter du pain" -Due demain          # aussi : lundi, 25/12, +3j ; ! ou !! pour la priorité, +tag
+todo                                            # en retard / aujourd'hui / à venir, avec menu interactif
+todo done 2
+note "Idée : comparer les assurances"           # ajoutée au fichier du jour (Markdown)
+note -Search assurance
+timer 25m -Label "Thé"                          # grands chiffres, Espace pause, alerte à la fin
+timer -Pomodoro
+```
+
+### weather, calc, speed
+
+```powershell
+weather                     # ville devinée, puis mémorisée avec : weather -Set Lyon
+calc "(12,5 + 7) * 3"       # virgule décimale acceptée ; « calc » seul ouvre une calculatrice interactive
+calc "15% de 80"
+calc "10 km en mi"
+calc "100 EUR en USD"       # taux BCE du jour, gardés en cache pour fonctionner hors ligne
+speed                       # latence, téléchargement, envoi, verdict en clair
+```
+
+### tidy, dupes, awake
+
+```powershell
+tidy -DryRun                # aperçu du rangement des Téléchargements par type
+tidy                        # Images, Documents, Vidéos, Archives, Installateurs...
+tidy -Undo                  # remet tout en place
+dupes ~\Pictures -DryRun    # doublons classés par place perdue ; suppression vers la corbeille
+awake 2h                    # pas de mise en veille pendant 2 h (Q pour arrêter)
+```
+
+### gitignore, cheat, paths
+
+```powershell
+gitignore                   # dans un dépôt : propose les modèles d'après les fichiers présents
+gitignore node,python -Write
+cheat tar                   # exemples tldr (en français quand ils existent), gardés hors ligne
+paths                       # chaque entrée du PATH : portée, doublons, dossiers disparus
+paths which python          # quelle copie l'emporte
+paths clean -DryRun
+```
+
+Réseau : `weather` interroge wttr.in, `calc` (devises seulement) frankfurter.dev, `speed`
+speed.cloudflare.com, `gitignore` toptal.com et `cheat` les pages tldr (GitHub) ; aucun ne demande de clé.
 
 ### ask
 
@@ -351,15 +417,22 @@ administrateur, et la notification s'affiche même terminal fermé.
 ### pst
 
 ```powershell
-pst             # logo et liste des outils
-pst setup       # réglages : apparence, intégration au shell, assistant IA
+pst             # tableau de bord plein écran (liste simple si le terminal n'est pas interactif)
+pst list        # liste des outils
+pst setup       # réglages : langue, apparence, intégration au shell, assistant IA
 pst usage       # consommation de l'assistant IA
-pst menu        # lance un outil au clavier
 pst keys        # aide-mémoire des raccourcis
 pst shell on    # intégration au shell
 pst doctor      # vérifie l'installation, le PATH, le terminal
 pst update      # installe la dernière version
 ```
+
+## Français ou anglais
+
+Toute l'interface existe en français et en anglais : outils, aide, tableau de bord, assistant
+d'installation, intégration au shell. La langue est choisie à la première étape de l'installation,
+se change avec `pst setup`, et suit sinon la langue de Windows. Pour une session :
+`$env:PSTOOLS_LANG = 'en'`.
 
 ## Avec ou sans droits administrateur
 
@@ -387,7 +460,8 @@ Aucun outil ne s'arrête faute de droits : ce qui demande une élévation est si
 | `NO_COLOR=1` | Désactive les couleurs |
 | `PSTOOLS_ASCII=1` | Remplace les caractères de dessin par de l'ASCII (polices anciennes) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY` | Clés utilisées par `ask` (prioritaires sur celles de `ask -Setup`) |
-| `PSTOOLS_THEME` | Thème pour la session : `nuit`, `ocean`, `ambre`, `clair`, `mono` |
+| `PSTOOLS_THEME` | Thème pour la session : `cyan`, `nuit`, `ocean`, `ambre`, `clair`, `mono` |
+| `PSTOOLS_LANG` | Langue pour la session : `fr` ou `en` |
 
 ## Mise à jour et désinstallation
 
@@ -458,6 +532,7 @@ src/lib/PsTools.Wizard.ps1    assistant d'installation et « pst setup »
 src/setup.ps1                 moteur d'installation et de désinstallation
 src/shell/PsTools.Shell.ps1   intégration au shell : invite, raccourcis, alias, favoris
 src/tools/*.ps1               un fichier par commande
+src/i18n/en/*.psd1            dictionnaires anglais (le texte français sert de clé)
 tests/                        tests Pester, données simulées, faux service d'IA (Python)
 ```
 
