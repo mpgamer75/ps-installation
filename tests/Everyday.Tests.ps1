@@ -113,10 +113,8 @@ Describe 'todo' {
         $null = New-DataDir
         $null = Invoke-Tool 'todo' @('add', 'Plus tard')
         $null = Invoke-Tool 'todo' @('add', 'Demain', '-Due', 'demain')
-        $null = Invoke-Tool 'todo' @('add', 'Retard', '-Due', '-2')
-        $null = Invoke-Tool 'todo' @('add', 'Retard', '-Due', '+0')
-        $null = Invoke-Tool 'todo' @('add', 'Ancien', '-Due', 'hier')
-        $null = Invoke-Tool 'todo' @('edit', '1', 'Ancien retard')
+        $null = Invoke-Tool 'todo' @('add', 'Retard', '-Due', 'hier')
+        $null = Invoke-Tool 'todo' @('add', 'Ce jour', '-Due', '+0')
         $r = Invoke-Tool 'todo'
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match '(?s)En retard.*en retard de 1 j.*Pour aujourd.hui.*aujourd.hui.*À venir.*demain.*Un jour.*Plus tard'
@@ -292,11 +290,22 @@ Describe 'timer' {
         $r.Output | Should -Match 'Temps écoulé'
     }
 
-    It 'comprend les formats de durée' -ForEach @('90s', '1h30', '2m30s', '10:00', '1:00:00', '25') {
-        # Durée valide : l'aide n'est pas affichée et le minuteur démarre ; on vérifie le seul parseur via une durée absurde à côté.
-        $r = Invoke-Tool 'timer' @("${_}x")
-        $r.ExitCode | Should -Be 1
-        $r.Output | Should -Match 'Durée non reconnue'
+    It 'comprend les formats de durée' {
+        # Le parseur est extrait du script (son point d'entrée lancerait le minuteur).
+        . (Join-Path (Join-Path (Join-Path $Root 'src') 'lib') 'PsTools.ps1')
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $Tools 'timer.ps1'), [ref]$null, [ref]$null)
+        $fn = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'ConvertFrom-TimerDuration' }, $true)
+        . ([scriptblock]::Create($fn.Extent.Text))
+        ConvertFrom-TimerDuration '90s' | Should -Be 90
+        ConvertFrom-TimerDuration '25m' | Should -Be 1500
+        ConvertFrom-TimerDuration '25' | Should -Be 1500
+        ConvertFrom-TimerDuration '1h30' | Should -Be 5400
+        ConvertFrom-TimerDuration '2m30s' | Should -Be 150
+        ConvertFrom-TimerDuration '1h 5min' | Should -Be 3900
+        ConvertFrom-TimerDuration '10:00' | Should -Be 600
+        ConvertFrom-TimerDuration '1:00:00' | Should -Be 3600
+        { ConvertFrom-TimerDuration 'abc' } | Should -Throw '*Durée non reconnue*'
+        { ConvertFrom-TimerDuration '0s' } | Should -Throw
     }
 
     It 'refuse une durée nulle ou absente' {
