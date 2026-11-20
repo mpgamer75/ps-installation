@@ -13,7 +13,9 @@ param(
     [switch]$Yes,
     [switch]$Uninstall,
     [switch]$PurgeData,
-    [switch]$Deferred
+    [switch]$Deferred,
+    [switch]$Shell,
+    [switch]$NoShell
 )
 
 $ErrorActionPreference = 'Stop'
@@ -225,6 +227,11 @@ function Invoke-Uninstall {
         if ($isAdmin) { Remove-Legacy } else { $blocked = $true }
     }
 
+    # Bloc de chargement dans le profil PowerShell
+    if (-not $InstallRoot) {
+        foreach ($file in @(Disable-PstShell)) { Write-PstStatus ok "Profil nettoyé : $file" }
+    }
+
     # Rappels planifiés et données personnelles (pas pour un emplacement personnalisé :
     # il ne doit pas toucher aux rappels de l'installation principale)
     if ($isWindowsHost -and -not $InstallRoot) {
@@ -411,14 +418,42 @@ function Invoke-Install {
         }
     }
 
-    # 5. Bilan
+    # 5. Intégration au shell (modifie le profil de l'utilisateur : uniquement avec son accord)
+    $shellActive = $false
+    if (-not $InstallRoot -and -not $NoShell) {
+        $shellActive = Test-PstShell
+        $wanted = [bool]$Shell
+        if (-not $shellActive -and -not $wanted -and -not $Yes -and (Test-PstInteractive)) {
+            Write-Host ''
+            Write-Host '  L''intégration au shell ajoute une invite claire (dossier, branche Git, durée), un historique'
+            Write-Host '  plus malin, des raccourcis (Alt+A : IA) et des commandes façon Unix (ll, grep, sudo, jump...).'
+            $wanted = Read-PstConfirm 'L''activer ? (une ligne ajoutée à votre profil PowerShell, réversible avec « pst shell off »)' -DefaultYes
+        }
+        if ($shellActive -or $wanted) {
+            try {
+                $null = Enable-PstShell -AppRoot $app
+                $shellActive = $true
+                Write-PstStatus ok 'Intégration au shell active (nouveaux terminaux)'
+                $policy = Get-PstEffectivePolicy
+                if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') {
+                    Write-PstStatus warn "La stratégie d'exécution ($policy) empêche le chargement du profil : lancez « pst shell on » pour le correctif."
+                }
+            }
+            catch { Write-PstStatus warn "Profil non modifié : $($_.Exception.Message)" }
+        }
+    }
+
+    # 6. Bilan
     Write-Host ''
     $names = @($selected | Where-Object { $_.name -ne 'pst' } | ForEach-Object { $_.name })
-    $summary = @(
-        ((Paint 'Commandes  ' 'Accent' -Bold) + ($names -join "  ")),
-        ((Paint 'Gestion    ' 'Accent' -Bold) + 'pst' + (Paint '  (liste, diagnostic, mise à jour, désinstallation)' 'Dim')),
-        ((Paint 'Aide       ' 'Accent' -Bold) + '<commande> -Help')
+    $half = [int][Math]::Ceiling($names.Count / 2)
+    $summary = @(((Paint 'Commandes  ' 'Accent' -Bold) + (@($names | Select-Object -First $half) -join '  ')))
+    if ($names.Count -gt $half) { $summary += ('           ' + (@($names | Select-Object -Skip $half) -join '  ')) }
+    $summary += @(
+        ((Paint 'Gestion    ' 'Accent' -Bold) + 'pst' + (Paint '  (menu, diagnostic, mise à jour, désinstallation)' 'Dim')),
+        ((Paint 'Aide       ' 'Accent' -Bold) + '<commande> -Help' + (Paint '  ·  pst keys pour les raccourcis' 'Dim'))
     )
+    if (-not $shellActive -and -not $InstallRoot) { $summary += ((Paint 'Shell      ' 'Accent' -Bold) + 'pst shell on' + (Paint '  (invite, raccourcis, alias)' 'Dim')) }
     if ($pathReady) { $summary += ''; $summary += Paint 'Disponible tout de suite ici, et dans tout nouveau terminal.' 'Dim' }
     Format-PstBox -Title "ps-tools $($manifest.version) est installé" -Lines $summary -Color 'Ok' | Write-PstLine
     Write-Host ''

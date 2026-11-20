@@ -84,6 +84,22 @@ jobs:
           Assert-Run 'clean -DryRun'  { cmd /c clean -DryRun }             'Espace'
           Assert-Run 'clean -List'    { cmd /c clean -List }               'temp'
           Assert-Run 'ping-mon'       { cmd /c ping-mon 127.0.0.1 -Count 2 } '127\.0\.0\.1'
+          Assert-Run 'events'         { cmd /c events -Hours 48 }           'avertissement'
+          Assert-Run 'gst'            { cmd /c gst }                        'Branche'
+          Assert-Run 'loc'            { cmd /c loc }                        'lignes de code'
+          Assert-Run 'dev uuid'       { cmd /c dev uuid }                   '^\s*[0-9a-f]{8}-'
+          Assert-Run 'dev (pipeline)' { cmd /c "echo abc| dev b64" }        'YWJj'
+          Assert-Run 'watch'          { cmd /c watch -Count 1 "Get-Date" }  'watch'
+          Set-Content -Path "$env:TEMP\pst-ci.log" -Value 'INFO ok', 'ERROR boum'
+          Assert-Run 'logtail'        { cmd /c logtail "$env:TEMP\pst-ci.log" -NoFollow } 'ERROR boum'
+          Assert-Run 'ask (sans clef)' { cmd /c ask bonjour }               'ask -Setup' -AnyExitCode
+          Assert-Run 'pst keys'       { cmd /c pst keys }                   'Alt\+A'
+          # Integration au shell : le profil modifie doit se charger dans un shell neuf.
+          Assert-Run 'pst shell on'   { cmd /c pst shell on -Yes }          'Profil'
+          $exe = (Get-Process -Id $PID).Path
+          $count = (& $exe -NoLogo -Command "(Get-Command mkcd, mark, jump -ErrorAction SilentlyContinue).Count" | Out-String).Trim()
+          if ($count -ne '3') { throw "integration au shell non chargee par le profil : '$count'" }
+          Assert-Run 'pst shell off'  { cmd /c pst shell off }              'retir'
           Assert-Run 'remind add'     { cmd /c remind add "Test CI" -In 2h } 'enregistr'
           if (-not (Get-ScheduledTask -TaskName 'PsTools_Reminder_*' -ErrorAction SilentlyContinue)) { throw 'tâche planifiée non créée' }
           Assert-Run 'remind list'    { cmd /c remind list }               'Test CI'

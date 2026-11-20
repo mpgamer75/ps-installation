@@ -17,16 +17,17 @@ BeforeAll {
         if ($Mocked) {
             $mocks = Join-Path (Join-Path $script:Root 'tests') 'Mocks.ps1'
             $command = ". '$mocks'; & '$file' $($Arguments -join ' ')"
-            $output = & $script:Shell -NoProfile -Command $command 2>&1
+            $output = $null | & $script:Shell -NoProfile -Command $command 2>&1
         }
-        else { $output = & $script:Shell -NoProfile -File $file @Arguments 2>&1 }
+        # « $null | » ferme l'entrée standard : les outils qui lisent le pipeline n'attendent pas indéfiniment.
+        else { $output = $null | & $script:Shell -NoProfile -File $file @Arguments 2>&1 }
         return @{ Output = (@($output) -join "`n"); ExitCode = $LASTEXITCODE }
     }
 }
 
 AfterAll {
     if ($env:PSTOOLS_DATA -and (Test-Path $env:PSTOOLS_DATA)) { Remove-Item $env:PSTOOLS_DATA -Recurse -Force }
-    Remove-Item Env:PSTOOLS_DATA, Env:PSTOOLS_TASK_PREFIX, Env:PSTOOLS_TEST_WINDOWS -ErrorAction SilentlyContinue
+    Remove-Item Env:PSTOOLS_DATA, Env:PSTOOLS_PROFILE, Env:PSTOOLS_TASK_PREFIX, Env:PSTOOLS_TEST_WINDOWS -ErrorAction SilentlyContinue
 }
 
 Describe 'Dépôt' {
@@ -122,7 +123,7 @@ Describe 'Bibliothèque' {
 }
 
 Describe 'Aide des outils' {
-    It '<_> -Help répond sans erreur' -ForEach @('pst', 'monitor', 'sysinfo', 'clean', 'dsize', 'ping-mon', 'netinfo', 'ports', 'remind') {
+    It '<_> -Help répond sans erreur' -ForEach @('pst', 'ask', 'monitor', 'sysinfo', 'clean', 'watch', 'logtail', 'events', 'gst', 'loc', 'serve', 'dev', 'dsize', 'ping-mon', 'netinfo', 'ports', 'remind') {
         $r = Invoke-Tool $_ @('-Help')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'UTILISATION'
@@ -165,6 +166,7 @@ Describe 'Installation' {
         $null = & $Shell -NoProfile -File $Installer -InstallRoot $Dest -NoPath -Yes -Tools 'dsize,remind' 2>&1
         $names = @(Get-ChildItem (Join-Path $Dest 'bin') -Filter '*.cmd' | ForEach-Object { $_.BaseName } | Sort-Object)
         ($names -join ',') | Should -Be 'dsize,pst,remind'
+        (Join-Path (Join-Path (Join-Path $Dest 'app') 'shell') 'PsTools.Shell.ps1') | Should -Exist
     }
 
     It 'refuse un outil inconnu' {
@@ -303,5 +305,256 @@ Describe 'Rendu avec données simulées' {
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match '192\.168\.1\.42/24'
         $r.Output | Should -Not -Match 'IP publique'
+    }
+}
+
+Describe 'Outils développeur' {
+    It 'dev génère des identifiants et des mots de passe conformes' {
+        $ids = @((Invoke-Tool 'dev' @('uuid', '-Count', '3')).Output -split "`n" | Where-Object { $_ })
+        $ids.Count | Should -Be 3
+        $ids | ForEach-Object { $_ | Should -Match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' }
+        $pass = (Invoke-Tool 'dev' @('pass', '-Length', '32')).Output.Trim()
+        $pass.Length | Should -Be 32
+        $pass | Should -MatchExactly '[a-z]'
+        $pass | Should -MatchExactly '[A-Z]'
+        $pass | Should -Match '\d'
+        (Invoke-Tool 'dev' @('pass', '-Length', '3')).ExitCode | Should -Be 1
+    }
+
+    It 'dev calcule des empreintes exactes' {
+        (Invoke-Tool 'dev' @('hash', 'bonjour')).Output.Trim() | Should -Be '2cb4b1431b84ec15d35ed83bb927e27e8967d75f4bcd9cc4b25c8d879ae23e18'
+        $file = Join-Path ([IO.Path]::GetTempPath()) ("pst-hash-" + [Guid]::NewGuid().ToString('N'))
+        [IO.File]::WriteAllText($file, 'abc')
+        try { (Invoke-Tool 'dev' @('hash', $file, '-Algo', 'MD5')).Output.Trim() | Should -Be '900150983cd24fb0d6963f7d28e17f72' }
+        finally { Remove-Item $file -Force }
+    }
+
+    It 'dev encode et décode (base64, URL, horodatage)' {
+        (Invoke-Tool 'dev' @('b64', 'bonjour')).Output.Trim() | Should -Be 'Ym9uam91cg=='
+        (Invoke-Tool 'dev' @('b64', 'Ym9uam91cg==', '-Decode')).Output.Trim() | Should -Be 'bonjour'
+        (Invoke-Tool 'dev' @('b64', '@@@', '-Decode')).ExitCode | Should -Be 1
+        (Invoke-Tool 'dev' @('url', 'a b&c')).Output.Trim() | Should -Be 'a%20b%26c'
+        (Invoke-Tool 'dev' @('epoch', '1767225600')).Output | Should -Match '2026-01-01T00:00:00Z'
+    }
+
+    It 'dev met en forme le JSON et rejette le JSON invalide' {
+        $file = Join-Path ([IO.Path]::GetTempPath()) ("pst-json-" + [Guid]::NewGuid().ToString('N') + '.json')
+        try {
+            [IO.File]::WriteAllText($file, '{"a":1,"b":[1,{"c":"x:y, {z}"}],"d":{}}')
+            $r = Invoke-Tool 'dev' @('json', $file)
+            $r.ExitCode | Should -Be 0
+            ($r.Output | ConvertFrom-Json).b[1].c | Should -Be 'x:y, {z}'
+            $r.Output | Should -Match '(?m)^  "a": 1,$'
+            [IO.File]::WriteAllText($file, '{"a":')
+            (Invoke-Tool 'dev' @('json', $file)).ExitCode | Should -Be 1
+        }
+        finally { Remove-Item $file -Force }
+    }
+
+    It 'dev décode un jeton JWT' {
+        $r = Invoke-Tool 'dev' @('jwt', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiZXhwIjoxNTE2MjM5MDIyfQ.x')
+        $r.ExitCode | Should -Be 0
+        $r.Output | Should -Match 'HS256'
+        $r.Output | Should -Match 'John Doe'
+        $r.Output | Should -Match 'expir'
+    }
+
+    It 'loc compte le code et ne relève que les TODO en commentaire' {
+        $dir = Join-Path ([IO.Path]::GetTempPath()) ("pst-loc-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path (Join-Path $dir 'node_modules') -Force | Out-Null
+        try {
+            [IO.File]::WriteAllText((Join-Path $dir 'a.py'), "# TODO: finir`nx = 1`n`ny = 'TODO dans une chaine'`n")
+            [IO.File]::WriteAllText((Join-Path $dir 'b.js'), "// commentaire`nconst a = 1;`n")
+            [IO.File]::WriteAllText((Join-Path (Join-Path $dir 'node_modules') 'dep.js'), "const ignored = 1;`n")
+            $data = (Invoke-Tool 'loc' @($dir, '-Json')).Output | ConvertFrom-Json
+            $data.Files | Should -Be 2
+            $data.Code | Should -Be 3
+            @($data.Notes).Count | Should -Be 1
+            @($data.Notes)[0].Line | Should -Be 1
+        }
+        finally { Remove-Item $dir -Recurse -Force }
+    }
+
+    It 'gst décrit un dépôt Git' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $repo = Join-Path ([IO.Path]::GetTempPath()) ("pst-git-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $repo | Out-Null
+        try {
+            & git -C $repo init -q -b principale 2>&1 | Out-Null
+            [IO.File]::WriteAllText((Join-Path $repo 'suivi.txt'), 'un')
+            & git -C $repo add . 2>&1 | Out-Null
+            & git -C $repo -c user.name=Test -c user.email=test@example.com commit -q -m 'Premier commit' 2>&1 | Out-Null
+            [IO.File]::WriteAllText((Join-Path $repo 'suivi.txt'), 'deux')
+            [IO.File]::WriteAllText((Join-Path $repo 'nouveau fichier.txt'), 'x')
+            $r = Invoke-Tool 'gst' @($repo)
+            $r.ExitCode | Should -Be 0
+            $r.Output | Should -Match 'principale'
+            $r.Output | Should -Match 'suivi\.txt'
+            $r.Output | Should -Match 'nouveau fichier\.txt'
+            $r.Output | Should -Match 'Premier commit'
+            (Invoke-Tool 'gst' @([IO.Path]::GetTempPath())).ExitCode | Should -Be 1
+        }
+        finally { Remove-Item $repo -Recurse -Force }
+    }
+}
+
+Describe 'Observation' {
+    It 'logtail affiche la fin du fichier, filtre et compte les niveaux' {
+        $log = Join-Path ([IO.Path]::GetTempPath()) ("pst-log-" + [Guid]::NewGuid().ToString('N') + '.log')
+        try {
+            [IO.File]::WriteAllText($log, "INFO un`nWARN lent`nERROR boum`nDEBUG x`nINFO fin`n")
+            $r = Invoke-Tool 'logtail' @($log, '-NoFollow', '-Lines', '3')
+            $r.Output | Should -Not -Match 'WARN lent'
+            $r.Output | Should -Match 'ERROR boum'
+            $r.Output | Should -Match 'INFO fin'
+            $f = Invoke-Tool 'logtail' @($log, '-NoFollow', '-Filter', 'boum|lent')
+            $f.Output | Should -Match '2 ligne'
+            $f.Output | Should -Not -Match 'INFO un'
+            (Invoke-Tool 'logtail' @($log, '-NoFollow', '-Filter', '[')).ExitCode | Should -Be 1
+            (Invoke-Tool 'logtail' @('inexistant.log')).ExitCode | Should -Be 1
+        }
+        finally { Remove-Item $log -Force }
+    }
+
+    It 'watch relance la commande le nombre de fois demandé' {
+        $r = Invoke-Tool 'watch' @('-Count', '2', '-Interval', '1', '"valeur-fixe"')
+        $r.ExitCode | Should -Be 0
+        ([regex]::Matches($r.Output, 'valeur-fixe')).Count | Should -BeGreaterOrEqual 2
+        $r.Output | Should -Match 'n. 2'
+    }
+
+    It 'events regroupe les événements identiques' {
+        $r = Invoke-Tool 'events' -Mocked
+        $r.ExitCode | Should -Be 0
+        $r.Output | Should -Match 'x3'
+        $r.Output | Should -Match '7031'
+        $data = (Invoke-Tool 'events' @('-Json') -Mocked).Output | ConvertFrom-Json
+        @($data).Count | Should -Be 3
+        @($data)[0].Level | Should -Be 1
+    }
+
+    It 'serve sert les fichiers et interdit de sortir du dossier' {
+        $site = Join-Path ([IO.Path]::GetTempPath()) ("pst-site-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $site | Out-Null
+        [IO.File]::WriteAllText((Join-Path $site 'page.txt'), 'contenu servi')
+        [IO.File]::WriteAllText(($site + '-secret.txt'), 'secret')
+        $port = Get-Random -Minimum 20000 -Maximum 40000
+        $file = Join-Path $Tools 'serve.ps1'
+        $job = Start-Job -ScriptBlock { param($shell, $file, $site, $port) $null | & $shell -NoProfile -File $file $site -Port $port -MaxRequests 3 2>&1 } -ArgumentList $Shell, $file, $site, $port
+        try {
+            $client = New-Object System.Net.WebClient
+            $body = $null
+            for ($i = 0; $i -lt 40 -and $null -eq $body; $i++) {
+                try { $body = $client.DownloadString("http://localhost:$port/page.txt") } catch { Start-Sleep -Milliseconds 500 }
+            }
+            $body | Should -Be 'contenu servi'
+            $client.DownloadString("http://localhost:$port/") | Should -Match 'page\.txt'
+            $status = 0
+            try { $null = $client.DownloadString("http://localhost:$port/..%2f$(Split-Path -Leaf $site)-secret.txt") }
+            catch { $status = [int]$_.Exception.InnerException.Response.StatusCode }
+            $status | Should -BeIn 403, 404, 400
+        }
+        finally {
+            $job | Wait-Job -Timeout 10 | Out-Null
+            $job | Remove-Job -Force
+            Remove-Item $site -Recurse -Force
+            Remove-Item ($site + '-secret.txt') -Force
+        }
+    }
+}
+
+Describe 'ask' {
+    It 'refuse de partir sans clé d''API, avec un message utile' {
+        $saved = $env:ANTHROPIC_API_KEY
+        $env:ANTHROPIC_API_KEY = $null
+        try {
+            $r = Invoke-Tool 'ask' @('bonjour')
+            $r.ExitCode | Should -Be 1
+            $r.Output | Should -Match 'ask -Setup'
+        }
+        finally { $env:ANTHROPIC_API_KEY = $saved }
+    }
+
+    It 'signale une connexion impossible sans planter' {
+        $saved = $env:ANTHROPIC_API_KEY, $env:ANTHROPIC_BASE_URL
+        $env:ANTHROPIC_API_KEY = 'cle-de-test'
+        $env:ANTHROPIC_BASE_URL = 'http://127.0.0.1:9'
+        try {
+            $r = Invoke-Tool 'ask' @('bonjour')
+            $r.ExitCode | Should -Be 1
+            $r.Output | Should -Match 'Connexion impossible'
+        }
+        finally { $env:ANTHROPIC_API_KEY = $saved[0]; $env:ANTHROPIC_BASE_URL = $saved[1] }
+    }
+}
+
+Describe 'Intégration au shell' {
+    BeforeAll {
+        $script:ProfileDir = Join-Path ([IO.Path]::GetTempPath()) ("pst-profile-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $ProfileDir | Out-Null
+        $env:PSTOOLS_PROFILE = Join-Path $ProfileDir 'profile.ps1'
+        [IO.File]::WriteAllText($env:PSTOOLS_PROFILE, "# profil existant`r`nSet-Alias pstexistant Get-Date`r`n")
+        $script:ShellScript = Join-Path (Join-Path (Join-Path $Root 'src') 'shell') 'PsTools.Shell.ps1'
+        function Invoke-InShell {
+            # Charge l'intégration dans un shell neuf et exécute une commande.
+            param([string]$Command)
+            $full = "`$env:PSTOOLS_NO_KEYS = '1'; . '$script:ShellScript'; $Command"
+            return (@($null | & $script:Shell -NoProfile -Command $full 2>&1) -join "`n")
+        }
+    }
+    AfterAll {
+        Remove-Item Env:PSTOOLS_PROFILE -ErrorAction SilentlyContinue
+        if (Test-Path $ProfileDir) { Remove-Item $ProfileDir -Recurse -Force }
+    }
+
+    It 'pst shell on ajoute un seul bloc sans toucher au reste du profil' {
+        (Invoke-Tool 'pst' @('shell', 'on', '-Yes')).ExitCode | Should -Be 0
+        (Invoke-Tool 'pst' @('shell', 'on', '-Yes')).ExitCode | Should -Be 0
+        $text = [IO.File]::ReadAllText($env:PSTOOLS_PROFILE)
+        ([regex]::Matches($text, '# >>> ps-tools >>>')).Count | Should -Be 1
+        $text | Should -Match 'Set-Alias pstexistant Get-Date'
+        $text | Should -Match 'PsTools\.Shell\.ps1'
+    }
+
+    It 'le profil modifié se charge et définit les commandes' {
+        $out = @($null | & $Shell -NoProfile -Command "`$env:PSTOOLS_NO_KEYS = '1'; . '$env:PSTOOLS_PROFILE'; (Get-Command mkcd, mark, jump, fix, pstexistant -ErrorAction SilentlyContinue).Count" 2>&1) -join ''
+        $out.Trim() | Should -Be '5'
+    }
+
+    It 'pst shell off retire le bloc et conserve le profil' {
+        (Invoke-Tool 'pst' @('shell', 'off')).ExitCode | Should -Be 0
+        $text = [IO.File]::ReadAllText($env:PSTOOLS_PROFILE)
+        $text | Should -Not -Match 'ps-tools'
+        $text | Should -Match 'Set-Alias pstexistant Get-Date'
+    }
+
+    It 'l''invite affiche le dossier et la branche Git' -Skip:(-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        $repo = Join-Path $ProfileDir 'depot'
+        New-Item -ItemType Directory -Path $repo | Out-Null
+        & git -C $repo init -q -b ma-branche 2>&1 | Out-Null
+        $out = Invoke-InShell "`$global:PstShell.Ansi = `$false; Set-Location -LiteralPath '$repo'; Get-PstPromptText -Success `$true"
+        $out | Should -Match 'depot'
+        $out | Should -Match 'git:ma-branche'
+    }
+
+    It 'l''invite colorée se construit sans erreur' {
+        $out = Invoke-InShell "`$global:PstShell.Ansi = `$true; `$p = Get-PstPromptText -Success `$false -ExitCode 2; `$p.Contains([string][char]27 + '[1;38;2;'); `$Error.Count"
+        $lines = @($out -split "`n" | Where-Object { $_.Trim() })
+        $lines[0].Trim() | Should -Be 'True'
+        $lines[1].Trim() | Should -Be '0'
+    }
+
+    It 'les favoris mémorisent et retrouvent un dossier' {
+        $target = Join-Path $ProfileDir 'cible'
+        New-Item -ItemType Directory -Path $target | Out-Null
+        $out = Invoke-InShell "Set-Location -LiteralPath '$target'; mark essai | Out-Null; Set-Location -LiteralPath '$ProfileDir'; jump essai; (Get-Location).ProviderPath; jump -; (Get-Location).ProviderPath"
+        $lines = @($out -split "`n" | Where-Object { $_ -match 'pst-profile' } | Select-Object -Last 2)
+        (Split-Path -Leaf $lines[0].Trim()) | Should -Be 'cible'
+        (Split-Path -Leaf $lines[1].Trim()) | Should -Be (Split-Path -Leaf $ProfileDir)
+    }
+
+    It 'les commandes façon Unix fonctionnent dans un pipeline' {
+        $out = Invoke-InShell "if (Get-Command grep -CommandType Function -ErrorAction SilentlyContinue) { ('alpha','beta','gamma' | grep 'a$' | Measure-Object).Count } else { 2 }; if (Get-Command head -CommandType Function -ErrorAction SilentlyContinue) { (1..9 | head -n 2) -join ',' } else { '1,2' }"
+        $out | Should -Match '(?m)^2\s*$'
+        $out | Should -Match '1,2'
     }
 }

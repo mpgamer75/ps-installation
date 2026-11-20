@@ -10,7 +10,8 @@
 
 **La boîte à outils du terminal Windows**
 
-Neuf commandes soignées qui apportent à PowerShell le confort des terminaux Linux et macOS.
+Dix-sept commandes et une intégration au shell qui apportent à PowerShell le confort des terminaux
+Linux et macOS : assistant IA, observation, outils de développement, raccourcis.
 Installation en une ligne, **avec ou sans droits administrateur**.
 
 [![CI](https://github.com/mpgamer75/ps-installation/actions/workflows/ci.yml/badge.svg)](https://github.com/mpgamer75/ps-installation/actions/workflows/ci.yml)
@@ -58,26 +59,88 @@ git clone https://github.com/mpgamer75/ps-installation
 | `-Tools a,b` | N'installe que les outils cités (`pst` est toujours inclus). |
 | `-Yes` | Aucune question. |
 | `-NoPath` | Ne modifie pas le PATH. |
+| `-Shell` / `-NoShell` | Active l'intégration au shell sans demander / ne touche jamais au profil. |
 | `-InstallRoot <dossier>` | Dossier de destination personnalisé. |
 
 </details>
+
+## Intégration au shell
+
+En plus des commandes, ps-tools peut améliorer le terminal lui-même. L'installeur le propose ;
+à tout moment :
+
+```powershell
+pst shell on     # active (une ligne dans votre profil PowerShell, sans droits administrateur)
+pst shell off    # retire
+pst keys         # aide-mémoire des raccourcis
+```
+
+<img src="docs/shell.png" alt="Invite ps-tools, favoris et raccourci Alt+A" width="640">
+
+| Ce que vous gagnez | Détail |
+| --- | --- |
+| **Invite lisible** | Dossier raccourci, branche Git, durée des commandes longues, échec et code de sortie, badge `admin`. Un nouvel onglet Windows Terminal s'ouvre dans le même dossier. |
+| **Historique** | Flèches haut/bas filtrées par ce qui est déjà tapé, menu de complétion sur `Tab`, suggestions en liste (PowerShell 7), lignes contenant un secret non mémorisées. |
+| **Raccourcis** | `Alt+A` transforme la phrase tapée en commande (IA) · `Alt+S` ajoute `sudo` · `Alt+C` copie la ligne · `Alt+G` état Git. |
+| **Réflexes Unix** | `ll`, `la`, `..`, `...`, `mkcd`, `touch`, `which`, `grep`, `head`, `tail`, `df`, `open`, `sudo`, `reload`. |
+| **Favoris** | `mark api` dans un dossier, puis `jump api` (ou `j api`) depuis n'importe où ; `jump -` revient en arrière. |
+| **Assistant** | `fix` explique la dernière erreur et propose la commande corrigée. |
+
+L'intégration ne remplace jamais ce que vous avez déjà : une invite personnalisée (oh-my-posh,
+starship…) est conservée, et une commande n'est définie que si son nom est libre (Git pour Windows
+garde son `grep`). Réglages : `PSTOOLS_NO_PROMPT=1`, `PSTOOLS_NO_ALIASES=1`, `PSTOOLS_NO_KEYS=1`.
 
 ## Les outils
 
 | Commande | Rôle | Équivalent Unix | Droits admin |
 | --- | --- | --- | --- |
+| **IA** | | | |
+| [`ask`](#ask) | Assistant Claude : questions, commandes, analyse de sorties | — | non |
+| **Système** | | | |
 | [`monitor`](#monitor) | Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus | `htop` | non |
 | [`sysinfo`](#sysinfo) | Carte d'identité de la machine | `neofetch` | non |
 | [`clean`](#clean) | Nettoyeur avec aperçu avant suppression | — | optionnels |
+| **Observation** | | | |
+| [`watch`](#watch) | Relance une commande et surligne ce qui change | `watch -d` | non |
+| [`logtail`](#logtail) | Suit un journal en direct, couleurs par niveau, filtre | `tail -f` | non |
+| [`events`](#events) | Erreurs et avertissements récents de Windows, regroupés | `journalctl -p err` | optionnels |
+| **Code** | | | |
+| [`gst`](#gst-et-loc) | Tableau de bord Git : branche, synchronisation, modifications | `git status` + `log` | non |
+| [`loc`](#gst-et-loc) | Lignes de code par langage, notes TODO/FIXME | `cloc`, `tokei` | non |
+| [`serve`](#serve) | Serveur web local instantané pour un dossier | `python -m http.server` | optionnels |
+| [`dev`](#dev) | uuid, mots de passe, hash, base64, URL, JSON, JWT, dates | `uuidgen`, `sha256sum`, `jq`… | non |
+| **Fichiers et réseau** | | | |
 | [`dsize`](#dsize) | Classe le contenu d'un dossier par taille | `du -sh * \| sort -h` | optionnels |
 | [`ping-mon`](#ping-mon) | Latence de plusieurs hôtes : gigue, pertes, historique | `mtr`, `gping` | non |
 | [`netinfo`](#netinfo) | Interfaces, adresses, DNS, Wi-Fi, IP publique | `ip a` | non |
 | [`ports`](#ports) | Ports en écoute et processus associés | `ss -ltnp`, `lsof -i` | optionnels |
+| **Productivité** | | | |
 | [`remind`](#remind) | Rappels avec notifications Windows | `at` | non |
-| [`pst`](#pst) | Gestionnaire : liste, diagnostic, mise à jour, désinstallation | — | non |
+| [`pst`](#pst) | Menu, aide-mémoire, intégration au shell, diagnostic, mise à jour | — | non |
 
 Chaque commande accepte `-Help` (ou `--help`). « Optionnels » signifie que l'outil fonctionne
 entièrement en utilisateur standard et en fait simplement davantage en administrateur.
+
+### ask
+
+L'assistant IA du terminal, propulsé par Claude.
+
+```powershell
+ask "différence entre Get-ChildItem -Recurse et -Depth ?"
+ask -Cmd "les 10 plus gros fichiers de ce dossier"      # propose une commande : exécuter, copier ou annuler
+Get-Content .\erreur.log -Tail 80 | ask "que s'est-il passé ?"
+git diff | ask "rédige un message de commit"
+events -Json | ask "y a-t-il un problème sérieux ?"
+```
+
+Configuration, une fois : `ask -Setup` (ou la variable `ANTHROPIC_API_KEY`). La clé se crée sur
+[platform.claude.com](https://platform.claude.com/) ; elle est enregistrée chiffrée pour votre compte
+Windows. Modèle par défaut : `claude-opus-5-5`, modifiable avec `-Model` ou `ask -Setup`.
+
+> `ask` est le seul outil qui envoie vos données à un service : la question, le texte passé par le
+> pipeline et un court contexte (version de Windows et de PowerShell, dossier courant) partent vers
+> l'API d'Anthropic, et l'usage est facturé sur votre compte. Rien n'est envoyé tant que vous ne
+> lancez pas la commande. `ask -Cmd` n'exécute jamais rien sans votre confirmation.
 
 ### monitor
 
@@ -126,6 +189,72 @@ clean -Path D:\Logs -OlderThan 30 -Include *.log   # un dossier précis
 Garde-fous : les fichiers en cours d'utilisation sont conservés, les liens et jonctions ne sont pas
 suivis, et les dossiers sensibles (profil, lecteur entier, dossiers système) sont refusés.
 
+### watch
+
+```powershell
+watch "Get-ChildItem *.log"          # relancé toutes les 2 s, lignes modifiées surlignées
+watch -Interval 5 "git status -s"
+watch "ports 3000"
+```
+
+### logtail
+
+```powershell
+logtail .\app.log                              # 20 dernières lignes, puis suivi en direct
+logtail C:\logs\api.log -Filter "error|timeout"
+logtail app.log -Lines 100 -NoFollow
+```
+
+Erreurs en rouge, avertissements en orange, lecture partagée (l'application n'est jamais bloquée),
+rotation des journaux gérée. `Espace` insère un repère horodaté.
+
+### events
+
+<img src="docs/events.png" alt="events" width="700">
+
+```powershell
+events                      # erreurs et avertissements des dernières 24 h
+events -Hours 72 -Level error
+events -Id 7031             # message complet d'un événement
+```
+
+Un service qui plante quarante fois apparaît sur une seule ligne, avec son compteur. Le journal
+Sécurité (`-Log Security`) demande un terminal administrateur.
+
+### gst et loc
+
+<img src="docs/code.png" alt="gst et loc" width="700">
+
+```powershell
+gst                 # branche, avance/retard, fichiers modifiés, derniers commits
+loc                 # lignes de code par langage
+loc -Todo           # notes TODO / FIXME avec fichier et ligne
+```
+
+`gst` ne modifie jamais le dépôt. `loc` ignore les dépendances et dossiers générés
+(`node_modules`, `.git`, `bin`, `obj`, `dist`…).
+
+### serve
+
+```powershell
+serve                       # sert le dossier courant sur http://localhost:8080
+serve .\dist -Port 3000 -Open
+```
+
+Écoute sur `localhost` uniquement : ni droits administrateur, ni règle de pare-feu. `-Lan` ouvre le
+serveur au réseau local et demande alors un terminal administrateur.
+
+### dev
+
+```powershell
+dev uuid                    dev pass -Length 32 -Copy
+dev hash .\setup.exe        dev b64 "bonjour"          dev b64 "Ym9uam91cg==" -Decode
+dev url "a b&c"             dev epoch 1767225600
+dev jwt <jeton>             Get-Content data.json | dev json
+```
+
+Tout est calculé localement. Les mots de passe viennent du générateur cryptographique du système.
+
 ### dsize
 
 ```powershell
@@ -149,8 +278,8 @@ netinfo            # interfaces, DNS, Wi-Fi, connectivité, IP publique
 netinfo -Offline   # aucune requête vers Internet
 ```
 
-> L'adresse IP publique est obtenue par une requête HTTPS vers `api.ipify.org`. C'est le seul appel
-> externe de toute la boîte à outils ; `-Offline` le désactive.
+> L'adresse IP publique est obtenue par une requête HTTPS vers `api.ipify.org` ; `-Offline` la désactive.
+> Avec `ask`, c'est le seul appel externe de la boîte à outils.
 
 ### ports
 
@@ -185,6 +314,9 @@ administrateur, et la notification s'affiche même terminal fermé.
 
 ```powershell
 pst             # logo et liste des outils
+pst menu        # lance un outil au clavier
+pst keys        # aide-mémoire des raccourcis
+pst shell on    # intégration au shell
 pst doctor      # vérifie l'installation, le PATH, le terminal
 pst update      # installe la dernière version
 pst uninstall   # désinstalle
@@ -195,7 +327,10 @@ pst uninstall   # désinstalle
 | | Utilisateur standard | Administrateur |
 | --- | --- | --- |
 | Installation, mise à jour, désinstallation | oui (pour soi) | oui (pour soi ou pour tous) |
-| `monitor`, `sysinfo`, `ping-mon`, `netinfo`, `remind` | complet | complet |
+| `monitor`, `sysinfo`, `ping-mon`, `netinfo`, `remind`, `ask`, `watch`, `logtail`, `gst`, `loc`, `dev` | complet | complet |
+| Intégration au shell | oui | oui |
+| `events` | journaux Système et Application | + journal Sécurité |
+| `serve` | sur `localhost` | + ouverture au réseau local (`-Lan`) |
 | `clean` | cibles utilisateur | + temporaires Windows et Windows Update |
 | `dsize` | dossiers accessibles (les autres sont signalés) | tous les dossiers |
 | `ports` | liste complète ; arrêt de vos propres processus | + arrêt des processus d'autres comptes |
@@ -212,6 +347,7 @@ Aucun outil ne s'arrête faute de droits : ce qui demande une élévation est si
 | --- | --- |
 | `NO_COLOR=1` | Désactive les couleurs |
 | `PSTOOLS_ASCII=1` | Remplace les caractères de dessin par de l'ASCII (polices anciennes) |
+| `ANTHROPIC_API_KEY` | Clé d'API utilisée par `ask` (prioritaire sur celle de `ask -Setup`) |
 
 ## Mise à jour et désinstallation
 
@@ -226,7 +362,7 @@ Ou, sans passer par `pst` :
 irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/uninstall.ps1 | iex
 ```
 
-La désinstallation retire les fichiers, l'entrée du PATH et les rappels planifiés ; elle demande avant
+La désinstallation retire les fichiers, l'entrée du PATH, le bloc ajouté au profil et les rappels planifiés ; elle demande avant
 de supprimer vos rappels enregistrés. Une installation de la version 1 est détectée et remplacée
 (son retrait de `C:\Program Files` demande un terminal administrateur, une seule fois).
 
@@ -246,6 +382,7 @@ install.ps1 / uninstall.ps1   amorces en ASCII pur (compatibles « irm | iex »)
 manifest.json                 liste des outils et version
 src/lib/PsTools.ps1           bibliothèque partagée : couleurs, cadres, menus, écran temps réel
 src/setup.ps1                 moteur d'installation et de désinstallation
+src/shell/PsTools.Shell.ps1   intégration au shell : invite, raccourcis, alias, favoris
 src/tools/*.ps1               un fichier par commande
 tests/                        tests Pester et données simulées
 ```

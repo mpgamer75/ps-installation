@@ -1,5 +1,21 @@
 # Journal des modifications
 
+## 2.1.0
+
+### Intégration au shell (`pst shell on`)
+- Invite : dossier raccourci, branche Git, durée des commandes longues, échec et code de sortie, badge administrateur.
+- Historique filtré aux flèches, menu de complétion, suggestions en liste (PowerShell 7), secrets non mémorisés.
+- Raccourcis : `Alt+A` (phrase vers commande, via l'IA), `Alt+S` (sudo), `Alt+C` (copier), `Alt+G` (Git).
+- Commandes façon Unix : `ll`, `la`, `..`, `mkcd`, `touch`, `which`, `grep`, `head`, `tail`, `df`, `open`, `sudo`, `reload`.
+- Favoris de dossiers (`mark`, `jump`, `marks`, `unmark`) et `fix` pour expliquer la dernière erreur.
+- N'écrase jamais une invite personnalisée ni une commande existante ; activable et réversible sans droits administrateur.
+
+### Nouveaux outils
+- **ask** : assistant Claude en flux continu, mode commande avec confirmation, analyse du pipeline.
+- **watch**, **logtail**, **events** : observer une commande, un journal, les événements Windows.
+- **gst**, **loc**, **serve**, **dev** : tableau de bord Git, lignes de code et TODO, serveur web local, couteau suisse du développeur.
+- **pst** : `menu` (lanceur), `keys` (aide-mémoire), `shell` (intégration).
+
 ## 2.0.0
 
 Réécriture complète.

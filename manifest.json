@@ -1,22 +1,126 @@
 {
   "name": "ps-tools",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "La boîte à outils du terminal Windows",
   "repository": "https://github.com/mpgamer75/ps-installation",
   "minPowerShellVersion": "5.1",
   "core": [
-    { "source": "src/lib/PsTools.ps1", "destination": "lib/PsTools.ps1" },
-    { "source": "src/setup.ps1", "destination": "setup.ps1" }
+    {
+      "source": "src/lib/PsTools.ps1",
+      "destination": "lib/PsTools.ps1"
+    },
+    {
+      "source": "src/setup.ps1",
+      "destination": "setup.ps1"
+    },
+    {
+      "source": "src/shell/PsTools.Shell.ps1",
+      "destination": "shell/PsTools.Shell.ps1"
+    }
   ],
   "tools": [
-    { "name": "pst", "category": "Gestion", "admin": "non", "required": true, "description": "Gestionnaire ps-tools : liste, diagnostic, mise à jour, désinstallation" },
-    { "name": "monitor", "category": "Système", "admin": "non", "description": "Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus" },
-    { "name": "sysinfo", "category": "Système", "admin": "non", "description": "Carte d'identité de la machine, façon neofetch" },
-    { "name": "clean", "category": "Système", "admin": "optionnel", "description": "Nettoyeur avec aperçu : temporaires, caches, corbeille" },
-    { "name": "dsize", "category": "Fichiers", "admin": "optionnel", "description": "Classe le contenu d'un dossier par taille (du -sh)" },
-    { "name": "ping-mon", "category": "Réseau", "admin": "non", "description": "Latence multi-hôtes : gigue, pertes, historique" },
-    { "name": "netinfo", "category": "Réseau", "admin": "non", "description": "Interfaces, adresses, DNS, Wi-Fi et IP publique" },
-    { "name": "ports", "category": "Réseau", "admin": "optionnel", "description": "Ports en écoute et processus associés (ss -ltnp)" },
-    { "name": "remind", "category": "Productivité", "admin": "non", "description": "Rappels avec notifications Windows" }
+    {
+      "name": "pst",
+      "category": "Gestion",
+      "admin": "non",
+      "required": true,
+      "description": "Gestionnaire : menu, raccourcis, intégration au shell, diagnostic, mise à jour"
+    },
+    {
+      "name": "ask",
+      "category": "IA",
+      "admin": "non",
+      "description": "Assistant Claude : questions, commandes, analyse de sorties"
+    },
+    {
+      "name": "monitor",
+      "category": "Système",
+      "admin": "non",
+      "description": "Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus"
+    },
+    {
+      "name": "sysinfo",
+      "category": "Système",
+      "admin": "non",
+      "description": "Carte d'identité de la machine, façon neofetch"
+    },
+    {
+      "name": "clean",
+      "category": "Système",
+      "admin": "optionnel",
+      "description": "Nettoyeur avec aperçu : temporaires, caches, corbeille"
+    },
+    {
+      "name": "watch",
+      "category": "Observation",
+      "admin": "non",
+      "description": "Relance une commande et surligne ce qui change (watch -d)"
+    },
+    {
+      "name": "logtail",
+      "category": "Observation",
+      "admin": "non",
+      "description": "Suit un journal en direct, couleurs par niveau et filtre (tail -f)"
+    },
+    {
+      "name": "events",
+      "category": "Observation",
+      "admin": "optionnel",
+      "description": "Erreurs et avertissements récents du journal Windows, regroupés"
+    },
+    {
+      "name": "gst",
+      "category": "Code",
+      "admin": "non",
+      "description": "Tableau de bord Git : branche, synchronisation, modifications"
+    },
+    {
+      "name": "loc",
+      "category": "Code",
+      "admin": "non",
+      "description": "Lignes de code par langage et notes TODO/FIXME (cloc)"
+    },
+    {
+      "name": "serve",
+      "category": "Code",
+      "admin": "optionnel",
+      "description": "Serveur web local instantané pour un dossier"
+    },
+    {
+      "name": "dev",
+      "category": "Code",
+      "admin": "non",
+      "description": "Couteau suisse : uuid, mots de passe, hash, base64, JSON, JWT, dates"
+    },
+    {
+      "name": "dsize",
+      "category": "Fichiers",
+      "admin": "optionnel",
+      "description": "Classe le contenu d'un dossier par taille (du -sh)"
+    },
+    {
+      "name": "ping-mon",
+      "category": "Réseau",
+      "admin": "non",
+      "description": "Latence multi-hôtes : gigue, pertes, historique"
+    },
+    {
+      "name": "netinfo",
+      "category": "Réseau",
+      "admin": "non",
+      "description": "Interfaces, adresses, DNS, Wi-Fi et IP publique"
+    },
+    {
+      "name": "ports",
+      "category": "Réseau",
+      "admin": "optionnel",
+      "description": "Ports en écoute et processus associés (ss -ltnp)"
+    },
+    {
+      "name": "remind",
+      "category": "Productivité",
+      "admin": "non",
+      "description": "Rappels avec notifications Windows"
+    }
   ]
 }

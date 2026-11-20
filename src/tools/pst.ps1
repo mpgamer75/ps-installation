@@ -57,6 +57,9 @@ function Show-Home {
     Show-PstBanner
     Show-ToolList
     Write-Host ('  ' + (Paint '<commande> -Help' 'Ok') + (Paint '  aide détaillée d''un outil' 'Dim'))
+    Write-Host ('  ' + (Paint 'pst menu        ' 'Ok') + (Paint '  lance un outil au clavier' 'Dim'))
+    Write-Host ('  ' + (Paint 'pst keys        ' 'Ok') + (Paint '  aide-mémoire des raccourcis' 'Dim'))
+    Write-Host ('  ' + (Paint 'pst shell on    ' 'Ok') + (Paint '  invite, raccourcis et commandes façon Unix' 'Dim'))
     Write-Host ('  ' + (Paint 'pst doctor      ' 'Ok') + (Paint '  vérifie l''installation' 'Dim'))
     Write-Host ('  ' + (Paint 'pst update      ' 'Ok') + (Paint '  installe la dernière version' 'Dim'))
     Write-Host ''
@@ -105,6 +108,16 @@ function Invoke-Doctor {
     if ($script:Pst.Ansi) { Write-PstStatus ok 'Terminal : couleurs et affichage temps réel pris en charge' }
     else { Write-PstStatus warn 'Terminal sans séquences ANSI : affichage simplifié (essayez Windows Terminal)' }
     if ($script:Pst.IsWindows -and -not $env:WT_SESSION) { Write-PstStatus info 'Conseil : Windows Terminal offre le meilleur rendu (winget install Microsoft.WindowsTerminal)' }
+
+    # Intégration au shell et assistant
+    if (Test-PstShell) {
+        $policy = Get-PstEffectivePolicy
+        if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') { Write-PstStatus warn "Intégration au shell installée mais bloquée par la stratégie d'exécution ($policy) : « pst shell on » propose le correctif"; $problems++ }
+        else { Write-PstStatus ok 'Intégration au shell active' }
+    }
+    else { Write-PstStatus info 'Intégration au shell inactive (pst shell on)' }
+    if ($env:ANTHROPIC_API_KEY -or (Test-Path -LiteralPath (Join-Path (Get-PstDataDir) 'ask.json'))) { Write-PstStatus ok 'Assistant « ask » configuré' }
+    else { Write-PstStatus info 'Assistant « ask » non configuré (ask -Setup)' }
 
     # Droits
     if (Test-PstAdmin) { Write-PstStatus ok 'Session administrateur : toutes les fonctions sont disponibles' }
@@ -174,11 +187,103 @@ function Invoke-Remove {
     & $setup @arguments
 }
 
+function Invoke-Shell {
+    param([string]$Action)
+    $info = Get-InstallInfo
+    Show-PstHeader -Tool 'pst' -Subtitle 'intégration au shell'
+    switch -Regex ($Action) {
+        '^(on|enable|install)$' {
+            if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $appRoot 'shell') 'PsTools.Shell.ps1'))) { Write-PstStatus err 'Fichier d''intégration introuvable : lancez « pst update ».'; exit 1 }
+            foreach ($file in (Enable-PstShell -AppRoot $appRoot)) { Write-PstStatus ok "Profil mis à jour : $file" }
+            $policy = Get-PstEffectivePolicy
+            if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') {
+                Write-Host ''
+                Write-PstStatus warn "La stratégie d'exécution actuelle ($policy) empêche PowerShell de charger votre profil."
+                $command = 'Set-ExecutionPolicy RemoteSigned -Scope CurrentUser'
+                if ((Test-PstInteractive) -and -not $Yes -and (Read-PstConfirm "Autoriser les scripts locaux pour votre compte ($command) ?" -DefaultYes)) {
+                    try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force -ErrorAction Stop; Write-PstStatus ok 'Stratégie réglée sur RemoteSigned pour votre compte (aucun droit administrateur requis).' }
+                    catch { Write-PstStatus err "Modification impossible : $($_.Exception.Message)" }
+                }
+                else { Write-PstStatus info "À lancer vous-même pour l'activer : $command" }
+            }
+            Write-Host ''
+            Write-PstStatus info 'Ouvrez un nouveau terminal pour en profiter. Aperçu des raccourcis : pst keys'
+        }
+        '^(off|disable|uninstall)$' {
+            $changed = @(Disable-PstShell)
+            if ($changed.Count) { foreach ($file in $changed) { Write-PstStatus ok "Bloc retiré de : $file" } }
+            else { Write-PstStatus info 'L''intégration n''était pas active.' }
+        }
+        default {
+            if (Test-PstShell) { Write-PstStatus ok 'Intégration active  (pst shell off pour la retirer)' }
+            else { Write-PstStatus info 'Intégration inactive  (pst shell on pour l''activer)' }
+            foreach ($file in (Get-PstProfilePaths)) { Write-Host (Paint "      $file" 'Dim') }
+            Write-Host ''
+            Write-Host '  Ce qu''elle apporte :'
+            foreach ($line in @(
+                    'Invite claire : dossier, branche Git, durée et échec de la dernière commande',
+                    'Historique : flèches filtrées par ce qui est tapé, suggestions, menu de complétion',
+                    'Raccourcis : Alt+A (IA), Alt+S (sudo), Alt+C (copier), Alt+G (Git)',
+                    'Commandes : ll, la, .., mkcd, touch, which, grep, head, tail, df, open, sudo, reload',
+                    'Favoris : mark, jump (j), marks, unmark  ·  Assistant : fix')) { Write-Host ('    ' + (Paint $g.Info 'Accent2') + " $line") }
+        }
+    }
+    Write-Host ''
+    $null = $info
+}
+
+function Show-Keys {
+    Show-PstHeader -Tool 'pst' -Subtitle 'aide-mémoire'
+    $sections = [ordered]@{
+        'Raccourcis ps-tools (intégration au shell)' = @(
+            @('Alt+A', 'Transforme la phrase tapée en commande PowerShell (IA)'),
+            @('Alt+S', 'Ajoute « sudo » devant la ligne, ou rejoue la dernière commande en admin'),
+            @('Alt+C', 'Copie la ligne en cours'), @('Alt+G', 'État Git du dossier (gst)'))
+        'Édition de la ligne' = @(
+            @('Flèche haut / bas', 'Historique filtré par ce qui est déjà tapé'), @('Ctrl+R', 'Recherche dans l''historique'),
+            @('Tab', 'Menu de complétion'), @('Ctrl+Espace', 'Toutes les complétions possibles'),
+            @('Ctrl+Flèche', 'Saute de mot en mot'), @('Ctrl+Retour arr.', 'Efface le mot précédent'),
+            @('Échap', 'Efface la ligne'), @('F2', 'Bascule les suggestions en liste (PowerShell 7)'), @('Ctrl+D', 'Ferme le terminal si la ligne est vide'))
+        'Windows Terminal' = @(
+            @('Ctrl+Maj+T', 'Nouvel onglet'), @('Alt+Maj+D', 'Scinde le volet (même dossier)'), @('Alt+Flèche', 'Change de volet'),
+            @('Ctrl+Maj+P', 'Palette de commandes'), @('Ctrl+Maj+F', 'Recherche dans la sortie'), @('Ctrl+Molette', 'Zoom'))
+        'Commandes du shell' = @(
+            @('mark <nom> / jump <nom>', 'Favoris de dossiers (j en abrégé, jump - : dossier précédent)'), @('fix', 'Explique la dernière erreur et propose la correction'),
+            @('sudo <commande>', 'Exécute en administrateur'), @('ll, la, .., mkcd, touch, which', 'Réflexes Unix'), @('grep, head, tail, df, open', 'Réflexes Unix'))
+    }
+    foreach ($title in $sections.Keys) {
+        Write-Host ('  ' + (Paint $title.ToUpper() 'Accent' -Bold))
+        foreach ($row in $sections[$title]) { Write-Host ('    ' + (Paint (Format-PstPad $row[0] 32) 'Title' -Bold) + (Paint $row[1] 'Dim')) }
+        Write-Host ''
+    }
+    if (-not (Test-PstShell)) { Write-PstStatus info 'Intégration au shell inactive : « pst shell on » pour activer raccourcis et commandes.'; Write-Host '' }
+}
+
+function Show-Menu {
+    # Lanceur : choisir un outil au clavier.
+    $tools = @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' })
+    if (-not (Test-PstInteractive)) { Show-Home; return }
+    Show-PstBanner
+    $nameWidth = 0
+    foreach ($t in $tools) { $nameWidth = [Math]::Max($nameWidth, $t.name.Length) }
+    $labels = @($tools | ForEach-Object { '{0}  {1}' -f $_.name.PadRight($nameWidth), $_.description })
+    $pick = Read-PstChoice -Title 'Quel outil lancer ?' -Items $labels
+    if ($pick -lt 0) { return }
+    Write-Host ''
+    $tool = $tools[$pick]
+    $needsArgument = @('ask', 'watch', 'logtail', 'dev') -contains $tool.name
+    if ($needsArgument) { & (Join-Path $PSScriptRoot "$($tool.name).ps1") -Help }
+    else { & (Join-Path $PSScriptRoot "$($tool.name).ps1") }
+}
+
 if ($Help -or (Test-PstHelpArg (@($Command) + @($Rest)))) {
     Show-PstHelp -Name 'pst' -Synopsis 'Gestionnaire de la boîte à outils ps-tools.' `
         -Usage @('pst [commande]') `
         -Options @(
             @('list', 'Liste les outils installés'),
+            @('menu', 'Lanceur : choisir un outil au clavier'),
+            @('keys', 'Aide-mémoire des raccourcis et commandes'),
+            @('shell [on|off]', 'Intégration au shell : invite, raccourcis, alias, favoris'),
             @('doctor', 'Vérifie l''installation et l''environnement'),
             @('update', 'Installe la dernière version (mêmes outils, même périmètre)'),
             @('uninstall [-Yes]', 'Désinstalle ps-tools'),
@@ -192,6 +297,9 @@ switch -Regex ($Command) {
     '^$' { Show-Home; break }
     '^(list|ls)$' { Show-PstHeader -Tool 'pst' -Subtitle 'outils'; Show-ToolList; break }
     '^(doctor|check)$' { Invoke-Doctor; break }
+    '^(menu|run)$' { Show-Menu; break }
+    '^(keys|cheat|raccourcis)$' { Show-Keys; break }
+    '^shell$' { Invoke-Shell (@($Rest) + '' | Select-Object -First 1); break }
     '^(update|upgrade)$' { Invoke-Update; break }
     '^(uninstall|remove)$' { Invoke-Remove; break }
     '^(version|-v|--version)$' { Write-Host "ps-tools $($script:Pst.Version)"; break }

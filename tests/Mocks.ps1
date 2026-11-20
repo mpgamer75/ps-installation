@@ -52,3 +52,12 @@ function Get-NetIPConfiguration {
 }
 function Get-NetIPAddress { param($AddressFamily, $ErrorAction) [pscustomobject]@{ IPAddress = '192.168.1.42'; AddressState = 'Preferred'; InterfaceMetric = 25 } }
 function Get-ItemProperty { param([Parameter(Position = 0)]$Path) [pscustomobject]@{ DisplayVersion = '24H2'; CurrentBuild = '26100'; UBR = 2314 } }
+
+function Get-WinEvent {
+    param($FilterHashtable, $MaxEvents, $ErrorAction)
+    if ($FilterHashtable.LogName -ne 'System') { return }
+    $now = Get-Date
+    1..3 | ForEach-Object { [pscustomobject]@{ Level = 2; Id = 7031; ProviderName = 'Service Control Manager'; LogName = 'System'; TimeCreated = $now.AddMinutes(-10 * $_); Message = "Le service Spouleur d'impression s'est arrêté de manière inattendue.`nDétails supplémentaires." } }
+    [pscustomobject]@{ Level = 3; Id = 134; ProviderName = 'Time-Service'; LogName = 'System'; TimeCreated = $now.AddHours(-2); Message = 'Synchronisation horaire impossible.' }
+    [pscustomobject]@{ Level = 1; Id = 41; ProviderName = 'Kernel-Power'; LogName = 'System'; TimeCreated = $now.AddHours(-5); Message = "Le système a redémarré sans s'arrêter correctement." }
+}

@@ -5,7 +5,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:Pst = @{
-    Version   = '2.0.0'
+    Version   = '2.1.0'
     Repo      = 'mpgamer75/ps-installation'
     Esc       = [string][char]27
     # PSTOOLS_TEST_WINDOWS : réservé aux tests, pour exercer le rendu hors Windows avec des données simulées.
@@ -576,6 +576,100 @@ function Start-PstElevated {
         Write-PstStatus warn "Élévation annulée ou impossible : $($_.Exception.Message)"
         return $false
     }
+}
+
+# ── Intégration au profil PowerShell ─────────────────────────────────────────
+
+function Get-PstProfilePaths {
+    # Profils « tous hôtes » de l'utilisateur, pour Windows PowerShell 5.1 et PowerShell 7.
+    if ($env:PSTOOLS_PROFILE) { return @($env:PSTOOLS_PROFILE) }
+    if (-not $script:Pst.IsWindows) { return @($PROFILE.CurrentUserAllHosts) }
+    $documents = [Environment]::GetFolderPath('MyDocuments')
+    if (-not $documents) { return @($PROFILE.CurrentUserAllHosts) }
+    $paths = @((Join-Path (Join-Path $documents 'WindowsPowerShell') 'profile.ps1'))
+    $core = Join-Path $documents 'PowerShell'
+    if ($PSVersionTable.PSVersion.Major -ge 6 -or (Test-Path -LiteralPath $core) -or (Get-Command pwsh -ErrorAction SilentlyContinue)) {
+        $paths += Join-Path $core 'profile.ps1'
+    }
+    return $paths
+}
+
+function Read-PstProfile {
+    # Retourne @{ Text; Encoding } en respectant l'encodage d'origine du fichier.
+    param([string]$File)
+    $encoding = New-Object System.Text.UTF8Encoding $true
+    $text = ''
+    if (Test-Path -LiteralPath $File) {
+        $reader = New-Object IO.StreamReader $File, ([Text.Encoding]::Default), $true
+        try { $text = $reader.ReadToEnd(); $encoding = $reader.CurrentEncoding } finally { $reader.Dispose() }
+    }
+    return @{ Text = $text; Encoding = $encoding }
+}
+
+function Remove-PstProfileBlock {
+    param([string]$Text)
+    return [regex]::Replace($Text, '(?s)\r?\n?# >>> ps-tools >>>.*?# <<< ps-tools <<<\r?\n?', "`r`n").Trim("`r", "`n")
+}
+
+function Test-PstShell {
+    foreach ($file in (Get-PstProfilePaths)) {
+        if ((Test-Path -LiteralPath $file) -and (Read-PstProfile $file).Text -match '# >>> ps-tools >>>') { return $true }
+    }
+    return $false
+}
+
+function Enable-PstShell {
+    # Ajoute (ou met à jour) le bloc de chargement dans chaque profil. Retourne les fichiers modifiés.
+    param([string]$AppRoot)
+    $script = Join-Path (Join-Path $AppRoot 'shell') 'PsTools.Shell.ps1'
+    $block = @(
+        '# >>> ps-tools >>>'
+        '# Chargement de ps-tools dans le shell (retrait : pst shell off)'
+        "`$pstShellScript = '$($script -replace "'", "''")'"
+        'if (Test-Path -LiteralPath $pstShellScript) { . $pstShellScript }'
+        'Remove-Variable pstShellScript -ErrorAction SilentlyContinue'
+        '# <<< ps-tools <<<'
+    ) -join "`r`n"
+    $changed = @()
+    foreach ($file in (Get-PstProfilePaths)) {
+        $current = Read-PstProfile $file
+        $body = Remove-PstProfileBlock $current.Text
+        if ($body) { $body += "`r`n`r`n" }
+        $dir = Split-Path -Parent $file
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        [IO.File]::WriteAllText($file, $body + $block + "`r`n", $current.Encoding)
+        $changed += $file
+    }
+    return $changed
+}
+
+function Disable-PstShell {
+    $changed = @()
+    foreach ($file in (Get-PstProfilePaths)) {
+        if (-not (Test-Path -LiteralPath $file)) { continue }
+        $current = Read-PstProfile $file
+        if ($current.Text -notmatch '# >>> ps-tools >>>') { continue }
+        $body = Remove-PstProfileBlock $current.Text
+        if ($body.Trim()) { [IO.File]::WriteAllText($file, $body + "`r`n", $current.Encoding) }
+        else { Remove-Item -LiteralPath $file -Force }      # le profil ne contenait que notre bloc
+        $changed += $file
+    }
+    return $changed
+}
+
+function Get-PstEffectivePolicy {
+    # Stratégie d'exécution réellement appliquée aux profils (hors portée Processus,
+    # que les lanceurs ps-tools forcent à Bypass pour eux-mêmes).
+    if (-not $script:Pst.IsWindows) { return 'Unrestricted' }
+    try {
+        foreach ($scope in 'MachinePolicy', 'UserPolicy', 'CurrentUser', 'LocalMachine') {
+            $value = [string](Get-ExecutionPolicy -Scope $scope -ErrorAction Stop)
+            if ($value -and $value -ne 'Undefined') { return $value }
+        }
+    }
+    catch { return 'Unknown' }
+    if ($PSVersionTable.PSVersion.Major -ge 6) { return 'RemoteSigned' }
+    return 'Restricted'
 }
 
 Initialize-PstConsole

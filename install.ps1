@@ -29,6 +29,10 @@
     Do not modify the PATH environment variable.
 .PARAMETER Yes
     Never prompt.
+.PARAMETER Shell
+    Enable the shell integration (prompt, key bindings, Unix-like commands) without asking.
+.PARAMETER NoShell
+    Never touch the PowerShell profile.
 .PARAMETER Uninstall
     Remove ps-tools instead of installing it.
 .PARAMETER PurgeData
@@ -44,7 +48,9 @@ param(
     [switch]$Yes,
     [switch]$Uninstall,
     [switch]$PurgeData,
-    [switch]$Deferred
+    [switch]$Deferred,
+    [switch]$Shell,
+    [switch]$NoShell
 )
 
 # Everything runs inside a child scope: nothing leaks into the caller's
