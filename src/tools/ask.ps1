@@ -1,9 +1,11 @@
 ﻿<#
 .SYNOPSIS
-    ask — l'assistant IA du terminal (Claude) : questions, commandes, analyse de sorties.
+    ask — l'assistant IA du terminal : questions, commandes, analyse de sorties.
 .DESCRIPTION
-    Envoie la question à l'API Claude d'Anthropic et affiche la réponse au fil de l'eau.
-    Nécessite une clé d'API (variable ANTHROPIC_API_KEY, ou « ask -Setup »).
+    Fonctionne avec l'IA de votre choix et votre propre clé d'API : Anthropic Claude,
+    OpenAI, Google Gemini, Mistral, Groq, DeepSeek, xAI, OpenRouter, Ollama (local)
+    ou tout service compatible OpenAI. Chaque réponse indique les jetons consommés
+    et le coût ; « ask -Usage » affiche le bilan et le budget.
     Rien n'est envoyé tant que vous ne lancez pas la commande ; seuls la question,
     le texte éventuellement passé par le pipeline et un court contexte (version de
     Windows et de PowerShell, dossier courant) quittent la machine.
@@ -15,120 +17,94 @@ param(
     [Parameter(ValueFromPipeline = $true)][object]$InputObject,
     [switch]$Cmd,
     [switch]$Raw,
+    [string]$Provider,
     [string]$Model,
     [ValidateSet('', 'low', 'medium', 'high', 'xhigh', 'max')][string]$Effort = '',
     [switch]$Setup,
     [switch]$Status,
+    [switch]$Usage,
     [switch]$Help
 )
 
 $piped = @($input)
-. (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+$libDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'lib'
+. (Join-Path $libDir 'PsTools.ps1')
+. (Join-Path $libDir 'PsTools.AI.ps1')
 $g = $script:Pst.Glyph
 
 if ($Help -or (Test-PstHelpArg $Prompt)) {
-    Show-PstHelp -Name 'ask' -Synopsis 'Posez une question à Claude sans quitter le terminal.' `
+    Show-PstHelp -Name 'ask' -Synopsis 'Posez une question à l''IA de votre choix sans quitter le terminal.' `
         -Usage @(
             'ask <question>                  réponse affichée au fil de l''eau',
             'ask -Cmd <ce que vous voulez>   propose une commande PowerShell, à exécuter ou copier',
             '<commande> | ask <question>     analyse une sortie, un journal, un fichier',
-            'ask -Setup                      enregistre la clé d''API et les préférences'
+            'ask -Usage                      jetons consommés, coût, budget',
+            'ask -Setup                      fournisseur, clé d''API, modèle, budget'
         ) `
         -Options @(
             @('-Cmd', 'Demande une commande prête à l''emploi (confirmation avant exécution)'),
             @('-Raw', 'Avec -Cmd : affiche seulement la commande (scripts, raccourci Alt+A)'),
-            @('-Model <id>', 'Modèle Claude (défaut : claude-opus-5-5)'),
-            @('-Effort <niveau>', 'low (défaut, rapide), medium, high, xhigh, max'),
-            @('-Status', 'Affiche la configuration actuelle'),
-            @('-Setup', 'Configuration interactive')
+            @('-Provider <id>', 'Fournisseur pour cette question : anthropic, openai, gemini, mistral, groq, deepseek, xai, openrouter, ollama, custom'),
+            @('-Model <id>', 'Modèle pour cette question'),
+            @('-Effort <niveau>', 'Réflexion : low (défaut, rapide), medium, high, xhigh, max'),
+            @('-Usage', 'Tableau de bord de consommation'),
+            @('-Status', 'Configuration actuelle'),
+            @('-Setup', 'Configuration guidée')
         ) `
         -Examples @(
             'ask "différence entre Get-ChildItem -Recurse et -Depth ?"',
             'ask -Cmd "les 10 plus gros fichiers de ce dossier"',
             'Get-Content .\erreur.log -Tail 80 | ask "que s''est-il passé ?"',
-            'git diff | ask "rédige un message de commit"'
+            'git diff | ask -Provider openai "rédige un message de commit"'
         ) `
-        -Notes @('Clé d''API : https://platform.claude.com/ (variable ANTHROPIC_API_KEY ou « ask -Setup »).',
-            'Avec l''intégration au shell : Alt+A transforme la ligne tapée en commande, « fix » explique la dernière erreur.')
+        -Notes @('Avec l''intégration au shell : Alt+A transforme la ligne tapée en commande, « fix » explique la dernière erreur.')
     exit 0
 }
 
-# ── Configuration ────────────────────────────────────────────────────────────
+if ($Usage) { Show-PstAiUsage; exit 0 }
 
-$configFile = Join-Path (Get-PstDataDir) 'ask.json'
-$defaultModel = 'claude-opus-5-5'
-$defaultEffort = 'low'
+if ($Setup) {
+    . (Join-Path $libDir 'PsTools.Wizard.ps1')
+    if (-not (Test-PstInteractive)) { Write-PstStatus err 'La configuration demande un terminal interactif.'; exit 1 }
+    Invoke-PstSetupMenu -AppRoot (Split-Path -Parent $PSScriptRoot) -Section 'ai'
+    exit 0
+}
 
-function Get-AskConfig {
-    $config = @{ Model = $defaultModel; Effort = $defaultEffort; Key = '' }
-    if (Test-Path -LiteralPath $configFile) {
-        try {
-            $saved = Get-Content -LiteralPath $configFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($saved.Model) { $config.Model = [string]$saved.Model }
-            if ($saved.Effort) { $config.Effort = [string]$saved.Effort }
-            if ($saved.Key) { $config.Key = [string]$saved.Key }
-        }
-        catch { $null = $_ }
+$settings = Get-PstAiSettings
+if ($Provider) {
+    if (-not (Get-PstAiProvider $Provider)) { Write-PstStatus err "Fournisseur inconnu : « $Provider » $($g.Dot) voir « ask -Help »"; exit 1 }
+    if ($Provider -ne $settings.Provider) {
+        $settings.Provider = $Provider
+        $settings.Model = (Get-PstAiProvider $Provider).Default
+        $settings.BaseUrl = [string](Get-PstAiProvider $Provider).BaseUrl
     }
-    return $config
 }
-
-function Get-ApiKey {
-    # La variable d'environnement prime ; sinon la clé enregistrée, chiffrée pour ce compte Windows.
-    param($Config)
-    if ($env:ANTHROPIC_API_KEY) { return $env:ANTHROPIC_API_KEY }
-    if (-not $Config.Key) { return $null }
-    try {
-        $secure = ConvertTo-SecureString -String $Config.Key -ErrorAction Stop
-        return (New-Object System.Net.NetworkCredential '', $secure).Password
-    }
-    catch { return $null }
-}
-
-function Save-AskConfig {
-    param($Config)
-    $json = [ordered]@{ Model = $Config.Model; Effort = $Config.Effort; Key = $Config.Key } | ConvertTo-Json
-    [IO.File]::WriteAllText($configFile, $json, (New-Object Text.UTF8Encoding $false))
-}
-
-$config = Get-AskConfig
+if ($Model) { $settings.Model = $Model }
+if ($Effort) { $settings.Effort = $Effort }
+if ($env:ANTHROPIC_BASE_URL -and $settings.Provider -eq 'anthropic') { $settings.BaseUrl = $env:ANTHROPIC_BASE_URL.TrimEnd('/') }
+$providerInfo = Get-PstAiProvider $settings.Provider
+$key = Get-PstAiKey $settings.Provider
 
 if ($Status) {
     Show-PstHeader -Tool 'ask' -Subtitle 'configuration'
-    $source = 'aucune'
-    if ($env:ANTHROPIC_API_KEY) { $source = 'variable ANTHROPIC_API_KEY' } elseif ($config.Key) { $source = 'enregistrée (chiffrée pour votre compte)' }
-    if ($source -eq 'aucune') { Write-PstStatus warn 'Clé d''API : aucune — lancez « ask -Setup »' } else { Write-PstStatus ok "Clé d'API : $source" }
-    Write-PstStatus info "Modèle : $($config.Model)"
-    Write-PstStatus info "Effort : $($config.Effort)"
-    Write-Host ''
-    exit 0
-}
-
-if ($Setup) {
-    Show-PstHeader -Tool 'ask' -Subtitle 'configuration'
-    if (-not (Test-PstInteractive)) { Write-PstStatus err 'La configuration demande un terminal interactif.'; exit 1 }
-    Write-Host '  Créez une clé sur https://platform.claude.com/ puis collez-la ici (la saisie reste masquée).'
-    Write-Host (Paint '  Entrée seule : conserver la clé actuelle.' 'Dim')
-    $secure = Read-Host '  Clé d''API' -AsSecureString
-    if ($secure.Length -gt 0) {
-        if ($script:Pst.IsWindows) {
-            $config.Key = ConvertFrom-SecureString -SecureString $secure
-            Write-PstStatus ok 'Clé enregistrée, chiffrée pour votre compte Windows.'
-        }
-        else { Write-PstStatus warn 'Hors Windows, la clé n''est pas enregistrée : définissez ANTHROPIC_API_KEY.' }
-    }
-    Write-Host ''
-    $models = @('claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-2')
-    $labels = @('claude-opus-5-5    (recommandé)', 'claude-sonnet-5-5  (plus économique)', 'claude-haiku-5-5   (le plus rapide)', 'claude-fable-5-2   (le plus capable)')
-    $pick = Read-PstChoice -Title 'Modèle par défaut' -Items $labels -Default ([Math]::Max(0, [array]::IndexOf($models, $config.Model)))
-    if ($pick -ge 0) { $config.Model = $models[$pick] }
-    Write-Host ''
-    $efforts = @('low', 'medium', 'high')
-    $pick = Read-PstChoice -Title 'Niveau de réflexion' -Items @('low     réponses rapides (recommandé au terminal)', 'medium  équilibré', 'high    questions difficiles') -Default ([Math]::Max(0, [array]::IndexOf($efforts, $config.Effort)))
-    if ($pick -ge 0) { $config.Effort = $efforts[$pick] }
-    Save-AskConfig $config
-    Write-Host ''
-    Write-PstStatus ok 'Configuration enregistrée. Essayez : ask "bonjour"'
+    $keyText = $key.Source
+    if (-not $key.Key) { $keyText = if ($providerInfo.KeyRequired) { Paint 'aucune (ask -Setup)' 'Warn' } else { 'non requise' } }
+    $price = Get-PstAiPrice $settings.Provider $settings.Model
+    $priceText = 'inconnu'
+    if ($price.Free) { $priceText = 'gratuit (local)' }
+    elseif ($price.Known) { $priceText = '{0} / {1} par million de jetons (entrée / sortie)' -f (Format-PstMoney $price.In), (Format-PstMoney $price.Out) }
+    $budgetText = 'aucun'
+    if ($settings.Budget -gt 0) { $budgetText = "$(Format-PstMoney (Get-PstAiMonthCost)) utilisés sur $(Format-PstMoney $settings.Budget) ce mois-ci" }
+    $lines = @(
+        ((Paint (Format-PstPad 'Fournisseur' 13) 'Accent') + $providerInfo.Label),
+        ((Paint (Format-PstPad 'Modèle' 13) 'Accent') + $settings.Model),
+        ((Paint (Format-PstPad 'Clé' 13) 'Accent') + $keyText),
+        ((Paint (Format-PstPad 'Tarif' 13) 'Accent') + $priceText),
+        ((Paint (Format-PstPad 'Budget' 13) 'Accent') + $budgetText),
+        ((Paint (Format-PstPad 'Réflexion' 13) 'Accent') + $settings.Effort)
+    )
+    if ($providerInfo.Custom -or $settings.Provider -eq 'ollama') { $lines += (Paint (Format-PstPad 'Adresse' 13) 'Accent') + $settings.BaseUrl }
+    Format-PstBox -Lines $lines | Write-PstLine
     Write-Host ''
     exit 0
 }
@@ -147,15 +123,15 @@ if ($context.Length -gt $maxContext) {
     Write-PstStatus info 'Réduisez-le avant de l''envoyer, par exemple : ... | Select-Object -Last 500 | ask "..."'
     exit 1
 }
-
-$apiKey = Get-ApiKey $config
-if (-not $apiKey) {
-    Write-PstStatus err 'Aucune clé d''API Claude configurée.'
-    Write-PstStatus info 'Lancez « ask -Setup », ou définissez la variable ANTHROPIC_API_KEY.'
+if (-not $key.Key -and $providerInfo.KeyRequired) {
+    Write-PstStatus err "Aucune clé d'API $($providerInfo.Label) configurée."
+    $hint = 'Lancez « ask -Setup » (ou « pst setup »)'
+    if ($providerInfo.EnvVar) { $hint += ", ou définissez la variable $($providerInfo.EnvVar)" }
+    Write-PstStatus info "$hint."
     exit 1
 }
-if ($Model) { $config.Model = $Model }
-if ($Effort) { $config.Effort = $Effort }
+if (-not $settings.BaseUrl) { Write-PstStatus err 'Adresse du service non configurée : lancez « ask -Setup ».'; exit 1 }
+if (-not $settings.Model) { Write-PstStatus err "Aucun modèle choisi pour $($providerInfo.Label) : ask -Model <identifiant>, ou « ask -Setup »."; exit 1 }
 
 $osName = 'Windows'
 if (-not $script:Pst.IsWindows) { $osName = [string][Environment]::OSVersion.Platform }
@@ -180,135 +156,49 @@ if ($context) {
     $userText = "$question`n`n<entree>`n$context`n</entree>"
 }
 
-$body = [ordered]@{
-    model         = $config.Model
-    max_tokens    = 16000
-    stream        = $true
-    system        = $system
-    output_config = @{ effort = $config.Effort }
-    messages      = @(@{ role = 'user'; content = $userText })
-}
-# Repli automatique côté serveur si le modèle décline la demande (modèles qui le prennent en charge).
-$useFallback = ($config.Model -match '^claude-(opus-5|fable-5|sonnet-5-5)')
-if ($useFallback) { $body.fallbacks = 'default' }
-$json = $body | ConvertTo-Json -Depth 6
+# ── Appel ────────────────────────────────────────────────────────────────────
 
-# ── Appel en flux (SSE) ──────────────────────────────────────────────────────
-
-try { Add-Type -AssemblyName System.Net.Http -ErrorAction Stop } catch { $null = $_ }
-try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { $null = $_ }
-
-$baseUrl = 'https://api.anthropic.com'
-if ($env:ANTHROPIC_BASE_URL) { $baseUrl = $env:ANTHROPIC_BASE_URL.TrimEnd('/') }
 $live = -not $Cmd
 $script:waiting = $false
-
-function Invoke-ClaudeStream {
-    # Retourne @{ Text; StopReason; Error; Status }.
-    $result = @{ Text = ''; StopReason = ''; Error = ''; Status = 0 }
-    $client = New-Object System.Net.Http.HttpClient
-    $client.Timeout = [TimeSpan]::FromMinutes(10)
-    $request = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::Post), "$baseUrl/v1/messages"
-    $request.Headers.Add('x-api-key', $apiKey)
-    $request.Headers.Add('anthropic-version', '2026-10-21')
-    if ($useFallback) { $request.Headers.Add('anthropic-beta', 'server-side-fallback-2026-07-01') }
-    $request.Content = New-Object System.Net.Http.StringContent $json, ([Text.Encoding]::UTF8), 'application/json'
-    $response = $null
-    $reader = $null
-    try {
-        $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-        $result.Status = [int]$response.StatusCode
-        $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-        $reader = New-Object IO.StreamReader $stream, ([Text.Encoding]::UTF8)
-        if (-not $response.IsSuccessStatusCode) {
-            $raw = $reader.ReadToEnd()
-            try { $result.Error = [string]($raw | ConvertFrom-Json).error.message } catch { $result.Error = $raw }
-            if (-not $result.Error) { $result.Error = "HTTP $($result.Status)" }
-            return $result
-        }
-        $text = New-Object System.Text.StringBuilder
-        while ($null -ne ($line = $reader.ReadLine())) {
-            if (-not $line.StartsWith('data:')) { continue }
-            $payload = $line.Substring(5).Trim()
-            if (-not $payload) { continue }
-            try { $evt = $payload | ConvertFrom-Json } catch { continue }
-            switch ([string]$evt.type) {
-                'content_block_delta' {
-                    if ($evt.delta.type -eq 'text_delta') {
-                        $chunk = [string]$evt.delta.text
-                        [void]$text.Append($chunk)
-                        if ($live) {
-                            if ($script:waiting) { Clear-Waiting }
-                            Write-Host $chunk -NoNewline
-                        }
-                    }
-                }
-                'message_delta' { if ($evt.delta.stop_reason) { $result.StopReason = [string]$evt.delta.stop_reason } }
-                'error' { $result.Error = [string]$evt.error.message }
-            }
-        }
-        $result.Text = $text.ToString()
-    }
-    catch {
-        $inner = $_.Exception
-        while ($inner.InnerException) { $inner = $inner.InnerException }
-        $result.Error = $inner.Message
-    }
-    finally {
-        if ($reader) { $reader.Dispose() }
-        if ($response) { $response.Dispose() }
-        $client.Dispose()
-    }
-    return $result
-}
-
-function Show-Waiting {
-    if (-not $script:Pst.Ansi -or $Raw) { return }
-    Write-Host ("  " + (Paint "$($g.Info) Claude réfléchit..." 'Dim')) -NoNewline
+if (-not $Raw) { Show-PstHeader -Tool 'ask' -Subtitle "$($providerInfo.Label) $($g.Dot) $($settings.Model)" }
+if ($script:Pst.Ansi -and -not $Raw) {
+    Write-Host ("  " + (Paint "$($g.Info) Réflexion en cours..." 'Dim')) -NoNewline
     $script:waiting = $true
 }
-function Clear-Waiting {
-    if ($script:waiting) { Write-Host "`r$($script:Pst.Esc)[K" -NoNewline }
-    $script:waiting = $false
+$onText = $null
+if ($live) {
+    $onText = {
+        param($chunk)
+        if ($script:waiting) { Write-Host "`r$($script:Pst.Esc)[K" -NoNewline; $script:waiting = $false }
+        Write-Host $chunk -NoNewline
+    }
 }
 
-if (-not $Raw) { Show-PstHeader -Tool 'ask' -Subtitle $config.Model }
-
-$answer = $null
-for ($attempt = 1; $attempt -le 3; $attempt++) {
-    Show-Waiting
-    $answer = Invoke-ClaudeStream
-    Clear-Waiting
-    # Nouvel essai uniquement sur les erreurs passagères, et seulement si rien n'a encore été affiché.
-    $transient = (@(408, 429, 500, 502, 503, 504, 529) -contains $answer.Status)
-    if (-not $answer.Error -or -not $transient -or $answer.Text -or $attempt -eq 3) { break }
-    Start-Sleep -Seconds (2 * $attempt)
-}
+$answer = Invoke-PstAiRequest -Provider $settings.Provider -Model $settings.Model -Key $key.Key -BaseUrl $settings.BaseUrl `
+    -Effort $settings.Effort -System $system -User $userText -OnText $onText
+if ($script:waiting) { Write-Host "`r$($script:Pst.Esc)[K" -NoNewline; $script:waiting = $false }
 
 if ($answer.Error) {
     if ($live -and $answer.Text) { Write-Host '' }
-    switch ($answer.Status) {
-        401 { Write-PstStatus err 'Clé d''API refusée. Vérifiez-la avec « ask -Setup ».' }
-        403 { Write-PstStatus err "Accès refusé : $($answer.Error)" }
-        404 { Write-PstStatus err "Modèle introuvable : $($config.Model). Choisissez-en un autre avec « ask -Setup »." }
-        429 { Write-PstStatus err 'Limite de requêtes atteinte. Réessayez dans un instant.' }
-        default {
-            if ($answer.Status -ge 500) { Write-PstStatus err "Le service Claude est momentanément indisponible ($($answer.Status)). Réessayez dans un instant." }
-            elseif ($answer.Status -eq 0) { Write-PstStatus err "Connexion impossible : $($answer.Error)" }
-            else { Write-PstStatus err "Requête refusée ($($answer.Status)) : $($answer.Error)" }
-        }
-    }
+    Write-PstStatus err (Get-PstAiErrorHint $answer $settings.Provider)
     exit 1
 }
+$source = 'ask'
+if ($Cmd) { $source = 'cmd' }
+Add-PstAiUsage $answer $source
+
 if ($answer.StopReason -eq 'refusal') {
     if ($live -and $answer.Text) { Write-Host '' }
-    Write-PstStatus warn 'Claude a décliné cette demande.'
+    Write-PstStatus warn 'Le modèle a décliné cette demande.'
     exit 1
 }
 
 if (-not $Cmd) {
     Write-Host ''
     if ($answer.StopReason -eq 'max_tokens') { Write-PstStatus warn 'Réponse interrompue : longueur maximale atteinte.' }
+    Write-Host ''
+    Write-Host ('  ' + (Format-PstAiFooter $answer $settings.Budget))
+    if ($settings.Budget -gt 0 -and (Get-PstAiMonthCost) -ge $settings.Budget) { Write-PstStatus warn 'Budget mensuel dépassé (ask -Usage pour le détail).' }
     Write-Host ''
     exit 0
 }
@@ -324,6 +214,7 @@ if (-not $command) { Write-PstStatus warn 'Aucune commande proposée.'; exit 1 }
 if ($command.StartsWith('#')) { Write-PstStatus warn $command.TrimStart('#').Trim(); Write-Host ''; exit 1 }
 
 Format-PstBox -Title 'Commande proposée' -Lines @(Paint $command 'Ok' -Bold) -Color 'Accent' | Write-PstLine
+Write-Host ('  ' + (Format-PstAiFooter $answer $settings.Budget))
 Write-Host ''
 if (-not (Test-PstInteractive)) { exit 0 }
 

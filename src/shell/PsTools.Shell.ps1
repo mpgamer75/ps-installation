@@ -6,7 +6,8 @@
 #  Apporte : une invite informative, un historique plus malin, des raccourcis
 #  clavier, des commandes façon Unix et des favoris de dossiers.
 #  Règle d'or : ne jamais écraser ce que l'utilisateur a déjà (invite
-#  personnalisée, alias ou commandes existants). Variables de réglage :
+#  personnalisée, alias ou commandes existants). Réglages : « pst setup »,
+#  ou ces variables, prioritaires :
 #    PSTOOLS_NO_PROMPT=1   garder l'invite actuelle
 #    PSTOOLS_NO_ALIASES=1  ne pas définir les commandes façon Unix
 #    PSTOOLS_NO_KEYS=1     ne pas toucher aux raccourcis clavier
@@ -30,6 +31,35 @@ catch { $null = $_ }
 if ($env:PSTOOLS_DATA) { $global:PstShell.DataDir = $env:PSTOOLS_DATA }
 elseif ($env:LOCALAPPDATA) { $global:PstShell.DataDir = Join-Path (Join-Path $env:LOCALAPPDATA 'ps-tools') 'data' }
 else { $global:PstShell.DataDir = Join-Path (Join-Path (Join-Path $HOME '.local') 'share') 'ps-tools' }
+
+# Réglages choisis dans l'assistant (pst setup) ; les variables PSTOOLS_NO_* restent prioritaires.
+$pstSettings = @{ theme = 'nuit'; prompt = $true; keys = $true; aliases = $true }
+try {
+    $pstConfigFile = Join-Path $global:PstShell.DataDir 'config.json'
+    if (Test-Path -LiteralPath $pstConfigFile) {
+        $pstConfig = [IO.File]::ReadAllText($pstConfigFile) | ConvertFrom-Json
+        if ($pstConfig.theme) { $pstSettings.theme = [string]$pstConfig.theme }
+        if ($pstConfig.shell) {
+            foreach ($name in 'prompt', 'keys', 'aliases') { if ($null -ne $pstConfig.shell.$name) { $pstSettings[$name] = [bool]$pstConfig.shell.$name } }
+        }
+    }
+}
+catch { $null = $_ }
+if ($env:PSTOOLS_THEME) { $pstSettings.theme = $env:PSTOOLS_THEME }
+if ($env:PSTOOLS_NO_PROMPT) { $pstSettings.prompt = $false }
+if ($env:PSTOOLS_NO_KEYS) { $pstSettings.keys = $false }
+if ($env:PSTOOLS_NO_ALIASES) { $pstSettings.aliases = $false }
+
+# Couleurs de l'invite selon le thème (mêmes palettes que les outils).
+$pstPalettes = @{
+    nuit  = @{ Path = @(86, 182, 255); Git = @(178, 132, 255); Ok = @(80, 220, 140); Err = @(255, 95, 110); Dim = @(125, 133, 150); Admin = @(255, 190, 80) }
+    ocean = @{ Path = @(64, 200, 224); Git = @(96, 140, 255); Ok = @(70, 220, 170); Err = @(255, 100, 120); Dim = @(120, 140, 160); Admin = @(255, 200, 90) }
+    ambre = @{ Path = @(255, 176, 59); Git = @(255, 122, 89); Ok = @(170, 220, 110); Err = @(255, 92, 82); Dim = @(150, 140, 125); Admin = @(255, 214, 102) }
+    clair = @{ Path = @(0, 105, 190); Git = @(125, 60, 200); Ok = @(0, 135, 70); Err = @(200, 35, 55); Dim = @(105, 112, 128); Admin = @(175, 100, 0) }
+    mono  = @{ Path = @(215, 215, 215); Git = @(175, 175, 175); Ok = @(200, 200, 200); Err = @(255, 255, 255); Dim = @(120, 120, 120); Admin = @(235, 235, 235) }
+}
+$global:PstShell.Colors = $pstPalettes[$pstSettings.theme]
+if (-not $global:PstShell.Colors) { $global:PstShell.Colors = $pstPalettes.nuit }
 
 function global:Test-PstFree {
     # Vrai si aucun alias, fonction ou programme ne porte déjà ce nom.
@@ -90,11 +120,11 @@ function global:Get-PstPromptText {
     }
 
     $line = ''
-    if ($s.IsAdmin) { $line += (& $paint 'admin' @(255, 190, 80) -Bold) + ' ' }
-    $line += & $paint $path @(86, 182, 255) -Bold
+    if ($s.IsAdmin) { $line += (& $paint 'admin' $s.Colors.Admin -Bold) + ' ' }
+    $line += & $paint $path $s.Colors.Path -Bold
 
     $branch = Get-PstGitBranch
-    if ($branch) { $line += ' ' + (& $paint "git:$branch" @(178, 132, 255)) }
+    if ($branch) { $line += ' ' + (& $paint "git:$branch" $s.Colors.Git) }
 
     # Durée de la dernière commande, si elle a pris un moment.
     $last = Get-History -Count 1
@@ -104,18 +134,18 @@ function global:Get-PstPromptText {
         if ($took -ge 2) {
             if ($took -ge 60) { $label = '{0}m {1:00}s' -f [int][Math]::Floor($took / 60), [int]($took % 60) }
             else { $label = '{0:N1}s' -f $took }
-            $line += ' ' + (& $paint $label @(125, 133, 150))
+            $line += ' ' + (& $paint $label $s.Colors.Dim)
         }
         if (-not $Success) {
             $code = ''
             if ($ExitCode -ne 0) { $code = " $ExitCode" }
-            $line += ' ' + (& $paint "×$code" @(255, 95, 110) -Bold)
+            $line += ' ' + (& $paint "×$code" $s.Colors.Err -Bold)
         }
     }
 
     $mark = '>'
-    $color = @(80, 220, 140)
-    if (-not $Success) { $color = @(255, 95, 110) }
+    $color = $s.Colors.Ok
+    if (-not $Success) { $color = $s.Colors.Err }
     $osc = ''
     if ($s.Ansi -and $location.Provider.Name -eq 'FileSystem') {
         # Indique le dossier courant au terminal : un nouvel onglet ou volet s'ouvre au même endroit.
@@ -126,7 +156,7 @@ function global:Get-PstPromptText {
 
 $pstDefaultPrompt = $false
 try { $pstDefaultPrompt = ((Get-Command prompt -ErrorAction Stop).Definition -match 'PS \$\(\$executionContext\.SessionState\.Path\.CurrentLocation\)') } catch { $pstDefaultPrompt = $true }
-if (-not $env:PSTOOLS_NO_PROMPT -and $pstDefaultPrompt) {
+if ($pstSettings.prompt -and $pstDefaultPrompt) {
     function global:prompt {
         $ok = $?
         $code = $global:LASTEXITCODE
@@ -139,7 +169,7 @@ if (-not $env:PSTOOLS_NO_PROMPT -and $pstDefaultPrompt) {
 
 # ── Historique et raccourcis clavier (PSReadLine) ────────────────────────────
 
-if (-not $env:PSTOOLS_NO_KEYS -and (Get-Module -Name PSReadLine)) {
+if ($pstSettings.keys -and (Get-Module -Name PSReadLine)) {
     try {
         Set-PSReadLineOption -HistoryNoDuplicates -HistorySearchCursorMovesToEnd -BellStyle None -MaximumHistoryCount 10000
         # Flèches : parcourt l'historique en filtrant sur ce qui est déjà tapé.
@@ -211,7 +241,7 @@ if (-not $env:PSTOOLS_NO_KEYS -and (Get-Module -Name PSReadLine)) {
 # Définies seulement si le nom est libre : Git pour Windows, WSL ou vos propres
 # alias gardent toujours la priorité.
 
-if (-not $env:PSTOOLS_NO_ALIASES) {
+if ($pstSettings.aliases) {
     if (Test-PstFree 'll') { function global:ll { Get-ChildItem -Force @args } }
     if (Test-PstFree 'la') { function global:la { Get-ChildItem -Force -Name @args } }
     if (Test-PstFree '..') { function global:.. { Set-Location .. } }
@@ -425,3 +455,5 @@ if (Test-PstFree 'fix') {
         $report | & $tool 'Explique pourquoi cette commande a échoué et donne la commande corrigée.'
     }
 }
+
+Remove-Variable pstSettings, pstPalettes, pstConfig, pstConfigFile, pstDefaultPrompt -ErrorAction SilentlyContinue

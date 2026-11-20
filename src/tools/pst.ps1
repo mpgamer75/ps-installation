@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    pst — gestionnaire ps-tools : liste des outils, diagnostic, mise à jour, désinstallation.
+    pst — gestionnaire ps-tools : réglages, liste des outils, diagnostic, mise à jour, désinstallation.
 #>
 [CmdletBinding()]
 param(
@@ -13,6 +13,8 @@ param(
 
 $appRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path (Join-Path $appRoot 'lib') 'PsTools.ps1')
+. (Join-Path (Join-Path $appRoot 'lib') 'PsTools.AI.ps1')
+. (Join-Path (Join-Path $appRoot 'lib') 'PsTools.Wizard.ps1')
 $g = $script:Pst.Glyph
 
 function Get-Manifest {
@@ -58,6 +60,7 @@ function Show-Home {
     Show-PstBanner
     Show-ToolList
     Write-Host ('  ' + (Paint '<commande> -Help' 'Ok') + (Paint '  aide détaillée d''un outil' 'Dim'))
+    Write-Host ('  ' + (Paint 'pst setup       ' 'Ok') + (Paint '  réglages : apparence, shell, assistant IA' 'Dim'))
     Write-Host ('  ' + (Paint 'pst menu        ' 'Ok') + (Paint '  lance un outil au clavier' 'Dim'))
     Write-Host ('  ' + (Paint 'pst keys        ' 'Ok') + (Paint '  aide-mémoire des raccourcis' 'Dim'))
     Write-Host ('  ' + (Paint 'pst shell on    ' 'Ok') + (Paint '  invite, raccourcis et commandes façon Unix' 'Dim'))
@@ -111,15 +114,32 @@ function Invoke-Doctor {
     else { Write-PstStatus warn 'Terminal sans séquences ANSI : affichage simplifié (essayez Windows Terminal)' }
     if ($script:Pst.IsWindows -and -not $env:WT_SESSION) { Write-PstStatus info 'Conseil : Windows Terminal offre le meilleur rendu (winget install Microsoft.WindowsTerminal)' }
 
-    # Intégration au shell et assistant
+    # Intégration au shell : on teste le chargement réel de chaque profil (partage réseau, stratégie...)
     if (Test-PstShell) {
-        $policy = Get-PstEffectivePolicy
-        if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') { Write-PstStatus warn "Intégration au shell installée mais bloquée par la stratégie d'exécution ($policy) : « pst shell on » propose le correctif"; $problems++ }
+        $blocked = @()
+        foreach ($file in (Get-PstProfilePaths)) {
+            if ((Test-Path -LiteralPath $file) -and (Read-PstProfile $file).Text -match '# >>> ps-tools >>>' -and -not (Test-PstProfileLoadable $file)) { $blocked += $file }
+        }
+        if ($blocked.Count) {
+            foreach ($file in $blocked) {
+                $where = ''
+                if ((Get-PstProfileLocation $file).IsNetwork) { $where = ' (profil sur un partage réseau)' }
+                Write-PstStatus warn "Profil bloqué par la stratégie d'exécution$where : $file"
+            }
+            Write-PstStatus info 'Correctif guidé : pst shell on'
+            $problems++
+        }
+        elseif ((Get-PstConfig).shell.remedy -eq 'terminal') { Write-PstStatus ok 'Intégration au shell active (profil Windows Terminal « ps-tools »)' }
         else { Write-PstStatus ok 'Intégration au shell active' }
     }
     else { Write-PstStatus info 'Intégration au shell inactive (pst shell on)' }
-    if ($env:ANTHROPIC_API_KEY -or (Test-Path -LiteralPath (Join-Path (Get-PstDataDir) 'ask.json'))) { Write-PstStatus ok 'Assistant « ask » configuré' }
-    else { Write-PstStatus info 'Assistant « ask » non configuré (ask -Setup)' }
+
+    # Assistant IA
+    $ai = Get-PstAiSettings
+    $provider = Get-PstAiProvider $ai.Provider
+    $key = Get-PstAiKey $ai.Provider
+    if ($key.Key -or -not $provider.KeyRequired) { Write-PstStatus ok "Assistant IA : $($provider.Label) $($g.Dot) $($ai.Model) (clé $($key.Source))" }
+    else { Write-PstStatus info 'Assistant IA non configuré (pst setup)' }
 
     # Droits
     if (Test-PstAdmin) { Write-PstStatus ok 'Session administrateur : toutes les fonctions sont disponibles' }
@@ -192,25 +212,23 @@ function Invoke-Shell {
     switch -Regex ($Action) {
         '^(on|enable|install)$' {
             if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $appRoot 'shell') 'PsTools.Shell.ps1'))) { Write-PstStatus err 'Fichier d''intégration introuvable : lancez « pst update ».'; exit 1 }
-            foreach ($file in (Enable-PstShell -AppRoot $appRoot)) { Write-PstStatus ok "Profil mis à jour : $file" }
-            $policy = Get-PstEffectivePolicy
-            if ($policy -eq 'Restricted' -or $policy -eq 'AllSigned') {
-                Write-Host ''
-                Write-PstStatus warn "La stratégie d'exécution actuelle ($policy) empêche PowerShell de charger votre profil."
-                $command = 'Set-ExecutionPolicy RemoteSigned -Scope CurrentUser'
-                if ((Test-PstInteractive) -and -not $Yes -and (Read-PstConfirm "Autoriser les scripts locaux pour votre compte ($command) ?" -DefaultYes)) {
-                    try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force -ErrorAction Stop; Write-PstStatus ok 'Stratégie réglée sur RemoteSigned pour votre compte (aucun droit administrateur requis).' }
-                    catch { Write-PstStatus err "Modification impossible : $($_.Exception.Message)" }
-                }
-                else { Write-PstStatus info "À lancer vous-même pour l'activer : $command" }
-            }
+            $remedy = ''
+            if ((Get-PstConfig).shell.remedy -eq 'terminal') { $remedy = 'terminal' }
+            Write-PstStatus step 'Vérification du chargement de votre profil PowerShell'
+            $state = Invoke-PstShellActivation -AppRoot $appRoot -Remedy $remedy -Interactive:(-not $Yes)
             Write-Host ''
-            Write-PstStatus info 'Ouvrez un nouveau terminal pour en profiter. Aperçu des raccourcis : pst keys'
+            switch ($state) {
+                'active' { Write-PstStatus info 'Ouvrez un nouveau terminal pour en profiter. Aperçu des raccourcis : pst keys' }
+                'terminal' { Write-PstStatus info 'Dans Windows Terminal, ouvrez un onglet « PowerShell · ps-tools » (menu ˅), ou faites-en le profil par défaut dans les paramètres.' }
+                default { exit 1 }
+            }
         }
         '^(off|disable|uninstall)$' {
             $changed = @(Disable-PstShell)
-            if ($changed.Count) { foreach ($file in $changed) { Write-PstStatus ok "Bloc retiré de : $file" } }
-            else { Write-PstStatus info 'L''intégration n''était pas active.' }
+            foreach ($file in $changed) { Write-PstStatus ok "Bloc retiré de : $file" }
+            $hadRemedy = [bool]((Get-PstConfig).shell.remedy)
+            Undo-PstShellRemedy
+            if (-not $changed.Count -and -not $hadRemedy) { Write-PstStatus info 'L''intégration n''était pas active.' }
         }
         default {
             if (Test-PstShell) { Write-PstStatus ok 'Intégration active  (pst shell off pour la retirer)' }
@@ -278,6 +296,8 @@ if ($Help -or (Test-PstHelpArg (@($Command) + @($Rest)))) {
     Show-PstHelp -Name 'pst' -Synopsis 'Gestionnaire de la boîte à outils ps-tools.' `
         -Usage @('pst [commande]') `
         -Options @(
+            @('setup', 'Réglages : apparence, intégration au shell, assistant IA'),
+            @('usage', 'Consommation de l''assistant IA : jetons, coût, budget'),
             @('list', 'Liste les outils installés'),
             @('menu', 'Lanceur : choisir un outil au clavier'),
             @('keys', 'Aide-mémoire des raccourcis et commandes'),
@@ -287,7 +307,7 @@ if ($Help -or (Test-PstHelpArg (@($Command) + @($Rest)))) {
             @('uninstall [-Yes] [-Purge]', 'Désinstalle ps-tools (identique à la commande pst-uninstall)'),
             @('version', 'Affiche la version')
         ) `
-        -Examples @('pst', 'pst doctor', 'pst update')
+        -Examples @('pst', 'pst setup', 'pst usage', 'pst doctor', 'pst update')
     exit 0
 }
 
@@ -295,6 +315,8 @@ switch -Regex ($Command) {
     '^$' { Show-Home; break }
     '^(list|ls)$' { Show-PstHeader -Tool 'pst' -Subtitle 'outils'; Show-ToolList; break }
     '^(doctor|check)$' { Invoke-Doctor; break }
+    '^(setup|config|configure|settings)$' { Invoke-PstSetupMenu -AppRoot $appRoot -Section (@($Rest) + '' | Select-Object -First 1); break }
+    '^(usage|conso|cost)$' { Show-PstAiUsage; break }
     '^(menu|run)$' { Show-Menu; break }
     '^(keys|cheat|raccourcis)$' { Show-Keys; break }
     '^shell$' { Invoke-Shell (@($Rest) + '' | Select-Object -First 1); break }

@@ -144,7 +144,7 @@ Describe 'Installation' {
             (Join-Path (Join-Path $Dest 'bin') "$($tool.name).cmd") | Should -Exist
             (Join-Path (Join-Path (Join-Path $Dest 'app') 'tools') "$($tool.name).ps1") | Should -Exist
         }
-        (Join-Path (Join-Path (Join-Path $Dest 'app') 'lib') 'PsTools.ps1') | Should -Exist
+        foreach ($lib in 'PsTools.ps1', 'PsTools.AI.ps1', 'PsTools.Wizard.ps1') { (Join-Path (Join-Path (Join-Path $Dest 'app') 'lib') $lib) | Should -Exist }
         $info = Get-Content (Join-Path (Join-Path $Dest 'app') 'install.json') -Raw | ConvertFrom-Json
         $info.Version | Should -Be $Manifest.version
     }
@@ -578,5 +578,305 @@ Describe 'Intégration au shell' {
         $out = Invoke-InShell "if (Get-Command grep -CommandType Function -ErrorAction SilentlyContinue) { ('alpha','beta','gamma' | grep 'a$' | Measure-Object).Count } else { 2 }; if (Get-Command head -CommandType Function -ErrorAction SilentlyContinue) { (1..9 | head -n 2) -join ',' } else { '1,2' }"
         $out | Should -Match '(?m)^2\s*$'
         $out | Should -Match '1,2'
+    }
+}
+
+Describe 'Configuration et thèmes' {
+    BeforeAll {
+        . (Join-Path (Join-Path (Join-Path $Root 'src') 'lib') 'PsTools.ps1')
+        $script:SavedData = $env:PSTOOLS_DATA
+        $env:PSTOOLS_DATA = Join-Path ([IO.Path]::GetTempPath()) ("pst-cfg-" + [Guid]::NewGuid().ToString('N'))
+    }
+    AfterAll {
+        if (Test-Path $env:PSTOOLS_DATA) { Remove-Item $env:PSTOOLS_DATA -Recurse -Force }
+        $env:PSTOOLS_DATA = $SavedData
+    }
+
+    It 'fournit une configuration complète par défaut' {
+        $c = Get-PstConfig
+        $c.theme | Should -Be 'nuit'
+        $c.ai.effort | Should -Be 'low'
+        $c.shell.prompt | Should -BeTrue
+    }
+
+    It 'enregistre puis relit la configuration en gardant les valeurs par défaut' {
+        $c = Get-PstConfig
+        $c.shell.keys = $false   # entrée nommée « keys » : piège classique des tables PowerShell
+        $c.theme = 'clair'
+        $c.ai.provider = 'openai'
+        $c.ai.prices['openai/test'] = @{ in = 1.5; out = 6 }
+        Save-PstConfig $c
+        $again = Get-PstConfig
+        $again.theme | Should -Be 'clair'
+        $again.ai.provider | Should -Be 'openai'
+        $again.ai.prices['openai/test'].out | Should -Be 6
+        $again.shell.keys | Should -BeFalse
+        $again.shell.prompt | Should -BeTrue
+        Save-PstConfig $again   # une configuration relue doit pouvoir être réenregistrée
+    }
+
+    It 'chiffre les clés et sait les effacer' {
+        Set-PstSecret 'ai.test' 'sk-secret-123'
+        Get-PstSecret 'ai.test' | Should -Be 'sk-secret-123'
+        [IO.File]::ReadAllText((Join-Path $env:PSTOOLS_DATA 'secrets.json')) | Should -Not -Match 'sk-secret-123'
+        Set-PstSecret 'ai.test' ''
+        Get-PstSecret 'ai.test' | Should -BeNullOrEmpty
+    }
+
+    It 'chaque thème définit les sept couleurs' {
+        foreach ($name in $script:PstThemes.Keys) {
+            foreach ($role in 'Accent', 'Accent2', 'Ok', 'Warn', 'Err', 'Dim', 'Title') { @($script:PstThemes[$name][$role]).Count | Should -Be 3 -Because "$name.$role" }
+        }
+        Set-PstTheme 'inexistant'
+        $script:Pst.ThemeName | Should -Be 'nuit'
+    }
+
+    It 'coupe un texte à la largeur demandée' {
+        $lines = Format-PstWrap 'un deux trois quatre cinq six sept' 10
+        $lines | ForEach-Object { $_.Length | Should -BeLessOrEqual 10 }
+        ($lines -join ' ') | Should -Be 'un deux trois quatre cinq six sept'
+    }
+}
+
+Describe 'Profil PowerShell bloqué' {
+    BeforeAll {
+        . (Join-Path (Join-Path (Join-Path $Root 'src') 'lib') 'PsTools.ps1')
+        $script:ProfileDir2 = Join-Path ([IO.Path]::GetTempPath()) ("pst-blocked-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $ProfileDir2 | Out-Null
+        $script:SavedProfile = $env:PSTOOLS_PROFILE
+        $env:PSTOOLS_PROFILE = Join-Path $ProfileDir2 'profile.ps1'
+    }
+    AfterAll {
+        $env:PSTOOLS_PROFILE = $SavedProfile
+        Remove-Item Env:PSTOOLS_TEST_PROFILE_BLOCKED -ErrorAction SilentlyContinue
+        if (Test-Path $ProfileDir2) { Remove-Item $ProfileDir2 -Recurse -Force }
+    }
+
+    It 'teste réellement le chargement, sans laisser de fichier de test' {
+        Test-PstProfileLoadable $env:PSTOOLS_PROFILE | Should -BeTrue
+        @(Get-ChildItem $ProfileDir2 -Force).Count | Should -Be 0
+    }
+
+    It 'ignore la préférence Bypass héritée des lanceurs' {
+        $env:PSExecutionPolicyPreference = 'Bypass'
+        try { Test-PstProfileLoadable $env:PSTOOLS_PROFILE | Should -BeTrue; $env:PSExecutionPolicyPreference | Should -Be 'Bypass' }
+        finally { Remove-Item Env:PSExecutionPolicyPreference -ErrorAction SilentlyContinue }
+    }
+
+    It 'n''écrit pas dans un profil bloqué et retire un ancien bloc' {
+        [IO.File]::WriteAllText($env:PSTOOLS_PROFILE, "# a moi`r`n")
+        (Invoke-Tool 'pst' @('shell', 'on', '-Yes')).ExitCode | Should -Be 0
+        [IO.File]::ReadAllText($env:PSTOOLS_PROFILE) | Should -Match 'ps-tools'
+        $env:PSTOOLS_TEST_PROFILE_BLOCKED = '1'
+        try {
+            # Situation de la version 2.2 : bloc présent, profil bloqué. Le diagnostic le signale...
+            (Invoke-Tool 'pst' @('doctor')).Output | Should -Match 'Profil bloqu'
+            # ... et « pst shell on » retire le bloc au lieu de le laisser échouer.
+            $r = Invoke-Tool 'pst' @('shell', 'on', '-Yes')
+            $r.ExitCode | Should -Be 1
+            $r.Output | Should -Match 'bloqu'
+            [IO.File]::ReadAllText($env:PSTOOLS_PROFILE) | Should -Not -Match 'ps-tools'
+            [IO.File]::ReadAllText($env:PSTOOLS_PROFILE) | Should -Match 'a moi'
+        }
+        finally { Remove-Item Env:PSTOOLS_TEST_PROFILE_BLOCKED -ErrorAction SilentlyContinue }
+    }
+
+    It 'supprime un profil qui ne contenait que le bloc ps-tools' {
+        Remove-Item $env:PSTOOLS_PROFILE -Force
+        (Invoke-Tool 'pst' @('shell', 'on', '-Yes')).ExitCode | Should -Be 0
+        $env:PSTOOLS_TEST_PROFILE_BLOCKED = '1'
+        try { $null = Invoke-Tool 'pst' @('shell', 'on', '-Yes') } finally { Remove-Item Env:PSTOOLS_TEST_PROFILE_BLOCKED -ErrorAction SilentlyContinue }
+        $env:PSTOOLS_PROFILE | Should -Not -Exist
+    }
+
+    It 'calcule la clé de zone Intranet d''un serveur' {
+        (Get-PstZoneKey 'beijaflore.com').Key | Should -Match 'Domains\\beijaflore\.com$'
+        (Get-PstZoneKey 'fs01.corp.example.com').Key | Should -Match 'Domains\\example\.com\\fs01\.corp$'
+        (Get-PstZoneKey '10.1.2.3').Range | Should -Be '10.1.2.3'
+        (Get-PstProfileLocation '\\beijaflore.com\users\docs\profile.ps1').Server | Should -Be 'beijaflore.com'
+        (Get-PstProfileLocation '\\beijaflore.com\users\docs\profile.ps1').IsNetwork | Should -BeTrue
+    }
+}
+
+Describe 'Assistant IA' {
+    BeforeDiscovery {
+        # Évalué à la découverte des tests : décide si les tests du faux service tournent.
+        $script:HasPython = [bool](Get-Command python3, python -CommandType Application -ErrorAction SilentlyContinue | Where-Object { $_.Source -notmatch 'WindowsApps' } | Select-Object -First 1)
+    }
+    BeforeAll {
+        $lib = Join-Path (Join-Path $Root 'src') 'lib'
+        . (Join-Path $lib 'PsTools.ps1')
+        . (Join-Path $lib 'PsTools.AI.ps1')
+        $script:SavedData = $env:PSTOOLS_DATA
+        $env:PSTOOLS_DATA = Join-Path ([IO.Path]::GetTempPath()) ("pst-ai-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $env:PSTOOLS_DATA | Out-Null
+        $script:SavedKeys = @{}
+        foreach ($name in 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_BASE_URL') { $SavedKeys[$name] = [Environment]::GetEnvironmentVariable($name); [Environment]::SetEnvironmentVariable($name, $null) }
+
+        # Faux service d'IA (Python), s'il est disponible.
+        $script:Python = Get-Command python3, python -CommandType Application -ErrorAction SilentlyContinue | Where-Object { $_.Source -notmatch 'WindowsApps' } | Select-Object -First 1
+        $script:MockPort = Get-Random -Minimum 41000 -Maximum 49000
+        $script:Trace = Join-Path $env:PSTOOLS_DATA 'trace.json'
+        $script:Mock = $null
+        if ($Python) {
+            $startArgs = @{ FilePath = $Python.Source; ArgumentList = @((Join-Path $PSScriptRoot 'MockAiServer.py'), $MockPort, "`"$Trace`"", 300); PassThru = $true }
+            if ($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) { $startArgs.WindowStyle = 'Hidden' }
+            $script:Mock = Start-Process @startArgs
+            for ($i = 0; $i -lt 40; $i++) {
+                try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', $MockPort); $c.Close(); break } catch { Start-Sleep -Milliseconds 250 }
+            }
+        }
+        $script:MockUrl = "http://127.0.0.1:$MockPort"
+        function Get-Trace { return (Get-Content $Trace -Raw -Encoding UTF8 | ConvertFrom-Json) }
+    }
+    AfterAll {
+        if ($Mock -and -not $Mock.HasExited) { Stop-Process -Id $Mock.Id -Force -ErrorAction SilentlyContinue }
+        foreach ($name in $SavedKeys.Keys) { [Environment]::SetEnvironmentVariable($name, $SavedKeys[$name]) }
+        if (Test-Path $env:PSTOOLS_DATA) { Remove-Item $env:PSTOOLS_DATA -Recurse -Force }
+        $env:PSTOOLS_DATA = $SavedData
+    }
+
+    It 'chaque fournisseur est complet et chaque prix cohérent' {
+        foreach ($id in $script:PstAiProviders.Keys) {
+            $p = $script:PstAiProviders[$id]
+            $p.Label | Should -Not -BeNullOrEmpty
+            $p.Protocol | Should -BeIn 'anthropic', 'openai'
+            foreach ($m in $p.Models) { $m.Out | Should -BeGreaterOrEqual $m.In -Because "$id/$($m.Id)" }
+            if ($p.Default -and $p.Models.Count) { @($p.Models | ForEach-Object { $_.Id }) | Should -Contain $p.Default }
+        }
+    }
+
+    It 'applique paliers longs, changements datés et heures de pointe' {
+        (Get-PstAiPrice anthropic claude-haiku-5-5 5000).In | Should -Be 0.10
+        (Get-PstAiPrice anthropic claude-haiku-5-5 150000).In | Should -Be 0.50
+        (Get-PstAiPrice gemini gemini-4-carbon 0 ([DateTime]'2026-11-25')).In | Should -Be 2
+        (Get-PstAiPrice gemini gemini-4-carbon 0 ([DateTime]'2026-12-02')).In | Should -Be 4
+        $peak = ([DateTimeOffset]'2026-11-23T07:00:00Z').LocalDateTime     # lundi, 7 h UTC
+        $offPeak = ([DateTimeOffset]'2026-11-22T07:00:00Z').LocalDateTime  # dimanche
+        (Get-PstAiPrice deepseek deepseek-flash 0 $peak).In | Should -Be 0.30
+        (Get-PstAiPrice deepseek deepseek-flash 0 $offPeak).In | Should -Be 0.15
+        (Get-PstAiPrice ollama llama4).Free | Should -BeTrue
+        (Get-PstAiPrice openai modele-inconnu).Known | Should -BeFalse
+        Get-PstAiCost (Get-PstAiPrice anthropic claude-opus-5-5) 1000000 100000 | Should -Be 6
+    }
+
+    It 'privilégie la clé de l''environnement puis la clé enregistrée' {
+        (Get-PstAiKey openai).Key | Should -BeNullOrEmpty
+        Set-PstSecret 'ai.openai' 'sk-enregistree'
+        (Get-PstAiKey openai).Key | Should -Be 'sk-enregistree'
+        $env:OPENAI_API_KEY = 'sk-environnement'
+        try { (Get-PstAiKey openai).Key | Should -Be 'sk-environnement' }
+        finally { $env:OPENAI_API_KEY = $null; Set-PstSecret 'ai.openai' '' }   # aucun test ne doit joindre un vrai service
+    }
+
+    It 'dialogue avec un service Anthropic (flux, jetons, coût)' -Skip:(-not $HasPython) {
+        $r = Invoke-PstAiRequest -Provider anthropic -Model claude-opus-5-5 -Key k -BaseUrl $MockUrl -System s -User u
+        $r.Error | Should -BeNullOrEmpty
+        $r.Text | Should -Be 'Bonjour, réponse accentuée : éàü.'
+        $r.In | Should -Be 1200
+        $r.Out | Should -Be 300
+        $r.Cost | Should -BeGreaterThan 0.0107
+        $r.Cost | Should -BeLessThan 0.0109
+        $t = Get-Trace
+        $t.path | Should -Be '/v1/messages'
+        $t.headers.'x-api-key' | Should -Be 'k'
+        $t.body.output_config.effort | Should -Be 'low'
+    }
+
+    It 'dialogue avec un service compatible OpenAI (usage, coût fourni, Groq, repli)' -Skip:(-not $HasPython) {
+        $r = Invoke-PstAiRequest -Provider openai -Model gpt-6.2-sol -Key k -BaseUrl "$MockUrl/v1" -System s -User u
+        $r.Text | Should -Be 'Bonjour, réponse accentuée : éàü.'
+        $r.In | Should -Be 2000
+        $r.Cost | Should -BeGreaterThan 0.0089
+        (Get-Trace).body.reasoning_effort | Should -Be 'low'
+        (Invoke-PstAiRequest -Provider openrouter -Model x/y -Key withcost -BaseUrl "$MockUrl/v1" -System s -User u).Cost | Should -Be 0.0421
+        (Invoke-PstAiRequest -Provider groq -Model openai/gpt-oss-20b -Key groq -BaseUrl "$MockUrl/v1" -System s -User u).Out | Should -Be 500
+        $retry = Invoke-PstAiRequest -Provider mistral -Model mistral-large-4 -Key nostreamoptions -BaseUrl "$MockUrl/v1" -System s -User u
+        $retry.Error | Should -BeNullOrEmpty
+        $retry.In | Should -Be 2000
+        $estimate = Invoke-PstAiRequest -Provider custom -Model x -Key nousage -BaseUrl "$MockUrl/v1" -System ('s' * 40) -User ('u' * 40)
+        $estimate.Estimated | Should -BeTrue
+        $estimate.In | Should -Be 20
+    }
+
+    It 'liste les modèles, filtre les non conversationnels et lit les prix en direct' -Skip:(-not $HasPython) {
+        $m = Get-PstAiModels -Provider openrouter -Key k -BaseUrl "$MockUrl/v1"
+        $m.Ok | Should -BeTrue
+        $m.Models | Should -Contain 'gpt-6.2-sol'
+        $m.Models | Should -Not -Contain 'text-embedding-9'
+        $m.Prices['vendor/priced-model'].in | Should -Be 2
+        (Get-PstAiModels -Provider openai -Key bad -BaseUrl "$MockUrl/v1").Status | Should -Be 401
+    }
+
+    It 'ask affiche la réponse, les jetons et le coût, puis journalise' -Skip:(-not $HasPython) {
+        $env:ANTHROPIC_API_KEY = 'k'; $env:ANTHROPIC_BASE_URL = $MockUrl
+        try {
+            $r = Invoke-Tool 'ask' @('-Provider', 'anthropic', 'bonjour')
+            $r.ExitCode | Should -Be 0
+            $r.Output | Should -Match 'réponse accentuée'
+            $r.Output | Should -Match 'jetons'
+            $r.Output | Should -Match '\$'
+            (Invoke-Tool 'ask' @('-Provider', 'anthropic', '-Cmd', '-Raw', 'gros fichiers')).Output.Trim() | Should -Be 'Get-ChildItem -File'
+            $env:ANTHROPIC_API_KEY = 'bad'
+            (Invoke-Tool 'ask' @('-Provider', 'anthropic', 'x')).Output | Should -Match 'Clé d.API refusée'
+        }
+        finally { $env:ANTHROPIC_API_KEY = $null; $env:ANTHROPIC_BASE_URL = $null }
+        $usage = Invoke-Tool 'ask' @('-Usage')
+        $usage.Output | Should -Match 'Ce mois-ci'
+        $usage.Output | Should -Match 'claude-opus-5-5'
+        (Get-PstAiUsage).Count | Should -BeGreaterOrEqual 2
+    }
+
+    It 'ask guide quand la clé ou le modèle manque' {
+        $r = Invoke-Tool 'ask' @('-Provider', 'openai', 'x')
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'OPENAI_API_KEY'
+        (Invoke-Tool 'ask' @('-Provider', 'ollama', 'x')).Output | Should -Match 'Aucun modèle'
+        (Invoke-Tool 'ask' @('-Provider', 'inconnu', 'x')).Output | Should -Match 'Fournisseur inconnu'
+    }
+}
+
+Describe 'Assistant d''installation' {
+    BeforeAll {
+        $lib = Join-Path (Join-Path $Root 'src') 'lib'
+        . (Join-Path $lib 'PsTools.ps1')
+        . (Join-Path $lib 'PsTools.AI.ps1')
+        . (Join-Path $lib 'PsTools.Wizard.ps1')
+        $script:SavedData = $env:PSTOOLS_DATA
+        $env:PSTOOLS_DATA = Join-Path ([IO.Path]::GetTempPath()) ("pst-wiz-" + [Guid]::NewGuid().ToString('N'))
+        $script:SavedProfile = $env:PSTOOLS_PROFILE
+        $env:PSTOOLS_PROFILE = Join-Path $env:PSTOOLS_DATA 'profil\profile.ps1'
+    }
+    AfterAll {
+        if (Test-Path $env:PSTOOLS_DATA) { Remove-Item $env:PSTOOLS_DATA -Recurse -Force }
+        $env:PSTOOLS_DATA = $SavedData
+        $env:PSTOOLS_PROFILE = $SavedProfile
+    }
+
+    It 'parcourt toutes les étapes et retourne les choix' {
+        $manifest = Get-Content (Join-Path $Root 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $state = Invoke-PstInstallWizard -Manifest $manifest -IsAdmin $false -Roots @{ CurrentUser = 'C:\u'; AllUsers = 'C:\a' } 6>$null
+        $state | Should -Not -BeNullOrEmpty
+        $state.Scope | Should -Be 'CurrentUser'
+        @($state.Tools).Count | Should -Be @($manifest.tools | Where-Object { -not $_.required }).Count
+        $state.Shell.Enabled | Should -BeTrue
+    }
+
+    It 'applique le thème et l''intégration au shell choisis' {
+        $appRoot = Join-Path $Root 'src'
+        $result = Invoke-PstApplyConfig -State @{ Theme = 'ambre'; Shell = @{ Enabled = $true; Prompt = $true; Keys = $false; Aliases = $true; Remedy = '' }; Ai = $null } -AppRoot $appRoot 6>$null
+        $result | Should -Be 'active'
+        (Get-PstConfig).theme | Should -Be 'ambre'
+        (Get-PstConfig).shell.keys | Should -BeFalse
+        [IO.File]::ReadAllText($env:PSTOOLS_PROFILE) | Should -Match 'PsTools\.Shell\.ps1'
+        $null = Disable-PstShell
+    }
+
+    It 'l''intégration au shell respecte les réglages enregistrés' {
+        $c = Get-PstConfig; $c.theme = 'clair'; $c.shell.aliases = $false; Save-PstConfig $c
+        $shellScript = Join-Path (Join-Path (Join-Path $Root 'src') 'shell') 'PsTools.Shell.ps1'
+        $out = @($null | & $Shell -NoProfile -Command "`$env:PSTOOLS_NO_KEYS = '1'; . '$shellScript'; [bool](Get-Command mkcd -ErrorAction SilentlyContinue); `$global:PstShell.Colors.Path -join ','" 2>&1) -join "`n"
+        $out | Should -Match 'False'
+        $out | Should -Match '0,105,190'
     }
 }
