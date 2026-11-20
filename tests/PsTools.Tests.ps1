@@ -228,6 +228,7 @@ Describe 'dsize et clean' {
 }
 
 Describe 'remind' {
+    # @(Get-Stored) : sous PowerShell 5.1, un objet seul n'a pas de propriété Count.
     # Sous Windows, les tâches planifiées créées ici portent un préfixe de test et sont retirées à la fin.
     BeforeAll {
         $script:Store = Join-Path $env:PSTOOLS_DATA 'reminders.json'
@@ -242,7 +243,7 @@ Describe 'remind' {
 
     It 'ajoute un rappel relatif (-In)' {
         (Invoke-Tool 'remind' @('add', 'Premier', '-In', '1h30')).ExitCode | Should -Be 0
-        $stored = Get-Stored
+        $stored = @(Get-Stored)
         $stored.Count | Should -Be 1
         $due = [DateTime]::ParseExact($stored[0].Due, 'yyyy-MM-dd HH:mm', [Globalization.CultureInfo]::InvariantCulture)
         ($due - (Get-Date)).TotalMinutes | Should -BeGreaterThan 88
@@ -258,7 +259,7 @@ Describe 'remind' {
     It 'rejette les durées invalides et les dates passées' {
         (Invoke-Tool 'remind' @('add', 'x', '-In', 'bientot')).ExitCode | Should -Be 1
         (Invoke-Tool 'remind' @('add', 'x', '-At', '01/01/2020 10:00')).ExitCode | Should -Be 1
-        (Get-Stored).Count | Should -Be 2
+        @(Get-Stored).Count | Should -Be 2
     }
 
     It 'liste, termine, supprime et purge' {
@@ -266,9 +267,9 @@ Describe 'remind' {
         (Invoke-Tool 'remind' @('done', '1')).ExitCode | Should -Be 0
         @(Get-Stored | Where-Object { $_.Done }).Count | Should -Be 1
         (Invoke-Tool 'remind' @('clear')).ExitCode | Should -Be 0
-        (Get-Stored).Count | Should -Be 1
+        @(Get-Stored).Count | Should -Be 1
         (Invoke-Tool 'remind' @('rm', '1')).ExitCode | Should -Be 0
-        (Get-Stored).Count | Should -Be 0
+        @(Get-Stored).Count | Should -Be 0
         $empty = Invoke-Tool 'remind' @('list')
         $empty.Output | Should -Match 'Aucun rappel'
         $empty.Output | Should -Not -Match 'illisible'
