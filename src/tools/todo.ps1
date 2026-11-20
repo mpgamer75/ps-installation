@@ -412,7 +412,7 @@ function Add-Task {
     $allTags = @(@($parts.Tags) + @($Tags | Where-Object { $_ } | ForEach-Object { ($_ -split ',') } | Where-Object { $_.Trim() } | ForEach-Object { ConvertTo-TagName $_ }) | Select-Object -Unique)
     $task = @{
         Id = [Guid]::NewGuid().ToString('N').Substring(0, 10); Text = $parts.Text; Done = $false
-        Created = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); DoneAt = ''; Due = $dueValue; Priority = $prio; Tags = $allTags
+        Created = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff'); DoneAt = ''; Due = $dueValue; Priority = $prio; Tags = $allTags
     }
     $list = @(Get-Tasks) + $task
     Save-Tasks $list
