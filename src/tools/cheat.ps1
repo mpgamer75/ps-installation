@@ -190,10 +190,10 @@ function ConvertFrom-TldrMarkdown {
         if ($line -match '^>\s?(.*)$') {
             $d = $Matches[1].Trim()
             if ($d -match '^(More information|Plus d''informations|Plus d''information)\s*:\s*<?([^>]+)>?\.?$') { $page.Info = $Matches[2].Trim() }
-            elseif ($d) { $page.Description += $d }
+            elseif ($d) { $page.Description += ($d -replace '`', '') }
             continue
         }
-        if ($line -match '^-\s+(.+)$') { $pending = $Matches[1].Trim(); continue }
+        if ($line -match '^-\s+(.+)$') { $pending = ($Matches[1].Trim() -replace '`', ''); continue }
         if ($line -match '^`(.+)`$') {
             $page.Examples += @{ Description = [string]$pending; Command = $Matches[1] }
             $pending = $null

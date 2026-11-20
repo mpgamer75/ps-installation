@@ -133,8 +133,12 @@ function Get-StatusItems {
     catch { $null = $_ }
     $todo = Read-PstJsonFile (Join-Path (Get-PstDataDir) 'todo.json')
     if ($todo) {
-        $open = @(@($todo.tasks) + @($todo.items) | Where-Object { $_ -is [hashtable] -and -not $_.done })
-        if ($open.Count) { $items += @{ On = $true; Text = (L '{0} tâche(s) ouverte(s)' $open.Count) } }
+        # todo.json : tableau de tâches { text, done, due (aaaa-mm-jj) }.
+        $open = @(@($todo) | ForEach-Object { $_ } | Where-Object { $_ -is [hashtable] -and -not $_.done })
+        $today = (Get-Date).ToString('yyyy-MM-dd')
+        $due = @($open | Where-Object { $_.due -and [string]$_.due -le $today })
+        if ($due.Count) { $items += @{ On = $true; Text = (L '{0} tâche(s) pour aujourd''hui' $due.Count) } }
+        elseif ($open.Count) { $items += @{ On = $true; Text = (L '{0} tâche(s) ouverte(s)' $open.Count) } }
     }
     return $items
 }

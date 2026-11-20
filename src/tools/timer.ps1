@@ -130,9 +130,9 @@ function Get-BigText {
 
 function Get-CenteredBig {
     param([string]$Text, [int]$Width, $Color = 'Accent')
-    $scale = 2
+    # Traits doublés si la largeur le permet, simples sinon.
     $big = @(Get-BigText $Text 2)
-    if (($big | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum -gt $Width - 4) { $big = @(Get-BigText $Text 1); $scale = 1 }
+    if (($big | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum -gt $Width - 4) { $big = @(Get-BigText $Text 1) }
     $span = ($big | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum
     $pad = ' ' * [Math]::Max(2, [int](($Width - $span) / 2))
     return @($big | ForEach-Object { $pad + (Paint $_ $Color -Bold) })
@@ -325,8 +325,8 @@ function Start-Pomodoro {
             if (-not $live) { $phase = L 'séance {0}/{1}' $p.Round $Rounds }
             $result = Invoke-Countdown -Seconds $p.Seconds -Title $title -Subtitle $subtitle -Phase $phase -Live:$live -CanSkip
             if ($result -eq 'quit') { break }
-            if ($p.Kind -eq 'work') { $completed++ }
             if ($result -eq 'done') {
+                if ($p.Kind -eq 'work') { $completed++ }
                 if ($p.Kind -eq 'work') { Send-TimerAlert -Title (L 'Séance terminée') -Message (L 'Séance {0}/{1} terminée. Place à la pause.' $p.Round $Rounds) }
                 else { Send-TimerAlert -Title (L 'Fin de la pause') -Message (L 'On reprend : séance {0}/{1}.' ($p.Round + 1) $Rounds) }
             }

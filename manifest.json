@@ -274,6 +274,44 @@
         "awake -Until 18:30 -Display",
         "awake"
       ]
+    },
+    {
+      "name": "todo",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Liste de tâches : échéances, priorités, étiquettes",
+      "description_en": "To-do list: due dates, priorities, tags",
+      "examples": [
+        "todo add \"Acheter du pain\" -Due demain",
+        "todo add \"Rapport mensuel !!\" -Due vendredi +travail",
+        "todo",
+        "todo done 1"
+      ]
+    },
+    {
+      "name": "note",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Notes rapides et journal, un fichier Markdown par jour",
+      "description_en": "Quick notes and journal, one Markdown file per day",
+      "examples": [
+        "note \"Idée : comparer les assurances\"",
+        "note",
+        "note -Search assurance",
+        "Get-Clipboard | note"
+      ]
+    },
+    {
+      "name": "timer",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Minuteur, chronomètre et Pomodoro avec alerte",
+      "description_en": "Timer, stopwatch and Pomodoro with alert",
+      "examples": [
+        "timer 25m -Label \"Thé\"",
+        "timer -Pomodoro",
+        "timer -Stopwatch"
+      ]
     }
   ]
 }

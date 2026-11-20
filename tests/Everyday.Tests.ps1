@@ -82,7 +82,7 @@ Describe 'todo' {
         $t.group | Should -Be 'someday'
     }
 
-    It 'comprend les échéances en français et en anglais' -ForEach @(
+    It 'comprend l''échéance « <In> »' -ForEach @(
         @{ In = "aujourd'hui"; Days = 0 }, @{ In = 'today'; Days = 0 }, @{ In = 'tomorrow'; Days = 1 },
         @{ In = '+3j'; Days = 3 }, @{ In = '+3d'; Days = 3 }, @{ In = '+2sem'; Days = 14 }, @{ In = 'hier'; Days = -1 }
     ) {

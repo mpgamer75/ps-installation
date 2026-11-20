@@ -20,6 +20,7 @@
     'budget IA {0} %' = 'AI budget {0}%'
     'IA non configurée' = 'AI not set up'
     '{0} tâche(s) ouverte(s)' = '{0} open task(s)'
+    "{0} tâche(s) pour aujourd'hui" = '{0} task(s) due today'
     'la boîte à outils du terminal' = 'the terminal toolkit'
     'Aucun outil ne correspond.' = 'No matching tool.'
     'outils' = 'tools'
