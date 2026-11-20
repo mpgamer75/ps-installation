@@ -10,7 +10,7 @@
 
 **La boîte à outils du terminal Windows**
 
-Dix-sept commandes et une intégration au shell qui apportent à PowerShell le confort des terminaux
+Dix-huit commandes et une intégration au shell qui apportent à PowerShell le confort des terminaux
 Linux et macOS : assistant IA, observation, outils de développement, raccourcis.
 Installation en une ligne, **avec ou sans droits administrateur**.
 
@@ -117,6 +117,7 @@ garde son `grep`). Réglages : `PSTOOLS_NO_PROMPT=1`, `PSTOOLS_NO_ALIASES=1`, `P
 | **Productivité** | | | |
 | [`remind`](#remind) | Rappels avec notifications Windows | `at` | non |
 | [`pst`](#pst) | Menu, aide-mémoire, intégration au shell, diagnostic, mise à jour | — | non |
+| [`pst-uninstall`](#mise-à-jour-et-désinstallation) | Désinstalle ps-tools | — | non |
 
 Chaque commande accepte `-Help` (ou `--help`). « Optionnels » signifie que l'outil fonctionne
 entièrement en utilisateur standard et en fait simplement davantage en administrateur.
@@ -319,7 +320,6 @@ pst keys        # aide-mémoire des raccourcis
 pst shell on    # intégration au shell
 pst doctor      # vérifie l'installation, le PATH, le terminal
 pst update      # installe la dernière version
-pst uninstall   # désinstalle
 ```
 
 ## Avec ou sans droits administrateur
@@ -352,19 +352,29 @@ Aucun outil ne s'arrête faute de droits : ce qui demande une élévation est si
 ## Mise à jour et désinstallation
 
 ```powershell
-pst update
-pst uninstall
+pst update        # installe la dernière version
+pst-uninstall     # désinstalle ps-tools
 ```
 
-Ou, sans passer par `pst` :
+`pst-uninstall` retire tout ce que l'installation a posé : les commandes, l'entrée du PATH,
+l'intégration au shell (le bloc ajouté à votre profil) et les rappels planifiés. Une installation
+pour votre compte se retire sans droits administrateur ; une installation « tous les utilisateurs »
+propose l'élévation.
+
+| Option | Effet |
+| --- | --- |
+| `pst-uninstall` | Demande confirmation, puis demande s'il faut aussi supprimer vos données. |
+| `pst-uninstall -Yes` | Aucune question ; vos données (rappels, favoris, réglages de `ask`) sont conservées. |
+| `pst-uninstall -Yes -Purge` | Aucune question ; supprime aussi vos données. Il ne reste rien. |
+
+Si les commandes ne sont plus accessibles, la même désinstallation se lance depuis le web :
 
 ```powershell
 irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/uninstall.ps1 | iex
 ```
 
-La désinstallation retire les fichiers, l'entrée du PATH, le bloc ajouté au profil et les rappels planifiés ; elle demande avant
-de supprimer vos rappels enregistrés. Une installation de la version 1 est détectée et remplacée
-(son retrait de `C:\Program Files` demande un terminal administrateur, une seule fois).
+Une installation de la version 1 est détectée et retirée elle aussi (son retrait de
+`C:\Program Files` demande un terminal administrateur, une seule fois).
 
 ## Dépannage
 

@@ -1,6 +1,6 @@
 {
   "name": "ps-tools",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "La boîte à outils du terminal Windows",
   "repository": "https://github.com/mpgamer75/ps-installation",
   "minPowerShellVersion": "5.1",
@@ -25,6 +25,13 @@
       "admin": "non",
       "required": true,
       "description": "Gestionnaire : menu, raccourcis, intégration au shell, diagnostic, mise à jour"
+    },
+    {
+      "name": "pst-uninstall",
+      "category": "Gestion",
+      "admin": "non",
+      "required": true,
+      "description": "Désinstalle ps-tools : commandes, PATH, intégration au shell, rappels planifiés"
     },
     {
       "name": "ask",

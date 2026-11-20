@@ -6,6 +6,7 @@
 param(
     [Parameter(Position = 0)][string]$Command,
     [switch]$Yes,
+    [switch]$Purge,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
@@ -62,6 +63,7 @@ function Show-Home {
     Write-Host ('  ' + (Paint 'pst shell on    ' 'Ok') + (Paint '  invite, raccourcis et commandes façon Unix' 'Dim'))
     Write-Host ('  ' + (Paint 'pst doctor      ' 'Ok') + (Paint '  vérifie l''installation' 'Dim'))
     Write-Host ('  ' + (Paint 'pst update      ' 'Ok') + (Paint '  installe la dernière version' 'Dim'))
+    Write-Host ('  ' + (Paint 'pst-uninstall   ' 'Ok') + (Paint '  désinstalle ps-tools' 'Dim'))
     Write-Host ''
 }
 
@@ -176,15 +178,11 @@ function Invoke-Update {
 }
 
 function Invoke-Remove {
-    $setup = Join-Path $appRoot 'setup.ps1'
-    $info = Get-InstallInfo
-    if ($null -eq $info -or -not (Test-Path -LiteralPath $setup)) {
-        Write-PstStatus info 'pst s''exécute depuis le dépôt : rien à désinstaller ici (voir uninstall.ps1).'
-        return
-    }
-    $arguments = @{ Uninstall = $true; Deferred = $true; Source = [string]$info.Source }
+    # Même chemin que la commande dédiée « pst-uninstall ».
+    $arguments = @{}
     if ($Yes) { $arguments.Yes = $true }
-    & $setup @arguments
+    if ($Purge) { $arguments.Purge = $true }
+    & (Join-Path $PSScriptRoot 'pst-uninstall.ps1') @arguments
 }
 
 function Invoke-Shell {
@@ -261,7 +259,7 @@ function Show-Keys {
 
 function Show-Menu {
     # Lanceur : choisir un outil au clavier.
-    $tools = @(Get-InstalledTools | Where-Object { $_.name -ne 'pst' })
+    $tools = @(Get-InstalledTools | Where-Object { $_.name -notlike 'pst*' })
     if (-not (Test-PstInteractive)) { Show-Home; return }
     Show-PstBanner
     $nameWidth = 0
@@ -286,7 +284,7 @@ if ($Help -or (Test-PstHelpArg (@($Command) + @($Rest)))) {
             @('shell [on|off]', 'Intégration au shell : invite, raccourcis, alias, favoris'),
             @('doctor', 'Vérifie l''installation et l''environnement'),
             @('update', 'Installe la dernière version (mêmes outils, même périmètre)'),
-            @('uninstall [-Yes]', 'Désinstalle ps-tools'),
+            @('uninstall [-Yes] [-Purge]', 'Désinstalle ps-tools (identique à la commande pst-uninstall)'),
             @('version', 'Affiche la version')
         ) `
         -Examples @('pst', 'pst doctor', 'pst update')
