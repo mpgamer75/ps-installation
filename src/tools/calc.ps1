@@ -68,14 +68,15 @@ function Get-OutCulture {
 $script:OutCulture = Get-OutCulture
 
 function Format-Number {
-    param([double]$Value, [int]$MaxDecimals = 10, [switch]$Plain)
+    # -Significant : chiffres significatifs conservés (12 pour un calcul, 6 pour une conversion).
+    param([double]$Value, [int]$MaxDecimals = 10, [int]$Significant = 12, [switch]$Plain)
     $c = $script:OutCulture
     if ([double]::IsInfinity($Value) -or [double]::IsNaN($Value)) { return [string]$Value }
     $abs = [Math]::Abs($Value)
-    if ($abs -ne 0 -and ($abs -ge 1e15 -or $abs -lt 1e-9)) { return $Value.ToString('G10', $c) }
+    if ($abs -ne 0 -and ($abs -ge 1e15 -or $abs -lt 1e-9)) { return $Value.ToString('G' + [Math]::Min($Significant, 10), $c) }
     $intDigits = 1
-    if ($abs -ge 1) { $intDigits = [int][Math]::Floor([Math]::Log10($abs)) + 1 }
-    $dec = [Math]::Max(0, [Math]::Min($MaxDecimals, 12 - $intDigits))
+    if ($abs -ne 0) { $intDigits = [int][Math]::Floor([Math]::Log10($abs)) + 1 }
+    $dec = [Math]::Max(0, [Math]::Min($MaxDecimals, $Significant - $intDigits))
     $rounded = [Math]::Round($Value, [Math]::Min($dec, 15))
     $int = '#,##0'
     if ($Plain) { $int = '0' }
@@ -604,7 +605,7 @@ function Format-RateDate {
 function Split-Conversion {
     # « <valeur> <unité> en|to|in <unité> » ; plusieurs découpages possibles (« 10 in to cm »).
     param([string]$Text)
-    foreach ($m in [regex]::Matches($Text, '\s+(en|to|in|vers|->|=>|' + [char]0x2192 + ')\s+', 'IgnoreCase')) {
+    foreach ($m in [regex]::Matches($Text, '\s+(en|to|in|vers|->|=>|' + [char]0x2192 + ')(?=\s)', 'IgnoreCase')) {
         $left = $Text.Substring(0, $m.Index).Trim()
         $right = $Text.Substring($m.Index + $m.Length).Trim()
         $lm = [regex]::Match($left, '^(?<v>.*[\d\)])\s*(?<u>[^\d\s()+*/^%;,.\-][^()]*?)$')
@@ -636,7 +637,7 @@ function Invoke-Calc {
         if ($from.Cat -eq 'data' -and (($from.Id -cmatch 'io$') -xor ($to.Id -cmatch 'io$'))) {
             $note = L 'Ko, Mo, Go = puissances de 1000 ; Kio, Mio, Gio = puissances de 1024.'
         }
-        return [ordered]@{ Kind = 'unit'; Input = $Text.Trim(); Value = $r; Unit = $conv.To; Text = ((Format-Number $r) + ' ' + $conv.To); Plain = (Format-Number $r -Plain); Note = $note; Stale = $false }
+        return [ordered]@{ Kind = 'unit'; Input = $Text.Trim(); Value = $r; Unit = $conv.To; Text = ((Format-Number $r -Significant 6) + ' ' + $conv.To); Plain = (Format-Number $r -Significant 6 -Plain); Note = $note; Stale = $false }
     }
     $fc = Resolve-Currency $conv.From
     $tc = Resolve-Currency $conv.To

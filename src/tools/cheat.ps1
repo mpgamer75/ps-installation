@@ -34,10 +34,10 @@ if ($Help -or (-not $Name -and -not $Search) -or (Test-PstHelpArg (@($Name) + @(
         ) `
         -Options @(
             @('-Source tldr|cheatsh', (L 'Source des exemples (défaut : tldr)')),
-            @('-Platform <nom>', (L 'Page tldr d''une plateforme : common, windows, linux, osx')),
+            @((L '-Platform <nom>'), (L 'Page tldr d''une plateforme : common, windows, linux, osx')),
             @('-Update', (L 'Télécharge à nouveau la fiche, même si elle est en cache')),
             @('-Offline', (L 'N''utilise que les fiches en cache, aucune requête réseau')),
-            @('-Search <mot>', (L 'Recherche dans les fiches en cache')),
+            @((L '-Search <mot>'), (L 'Recherche dans les fiches en cache')),
             @('-Json', (L 'Sortie JSON (description et exemples), pour les scripts ou « ask »'))
         ) `
         -Examples @('cheat tar', 'cheat git rebase', 'cheat Get-ChildItem', 'cheat curl -Source cheatsh', 'cheat -Search archive') `

@@ -37,7 +37,7 @@ if ($Help -or (Test-PstHelpArg (@($Templates) + @($Rest)))) {
         ) `
         -Options @(
             @('-Write', (L 'Écrit dans le fichier (fusion : aucune ligne dupliquée, contenu existant conservé)')),
-            @('-Path <fichier>', (L 'Fichier cible (défaut : .gitignore du dossier courant)')),
+            @((L '-Path <fichier>'), (L 'Fichier cible (défaut : .gitignore du dossier courant)')),
             @('-Yes', (L 'Écrit sans demander de confirmation')),
             @('-DryRun', (L 'Montre les lignes qui seraient ajoutées, sans écrire')),
             @('-List', (L 'Liste les modèles disponibles (filtre optionnel)')),

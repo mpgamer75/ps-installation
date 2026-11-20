@@ -20,6 +20,7 @@ $script:Pst = @{
 }
 $script:PstStrings = @{}       # toutes les traductions (repli)
 $script:PstStringSets = @{}    # une table par dictionnaire : le contexte de chaque fichier prime
+$script:PstStringWanted = New-Object System.Collections.ArrayList   # dictionnaires demandés, même en français
 
 # Palettes : chaque outil n'utilise que ces sept rôles de couleur.
 $script:PstThemes = [ordered]@{
@@ -824,6 +825,7 @@ function Get-PstI18nPath {
 function Import-PstStrings {
     # Charge un dictionnaire anglais. -Text : contenu déjà lu (amorce depuis le web).
     param([string]$Name, [string]$Text)
+    if (-not $script:PstStringWanted.Contains($Name)) { [void]$script:PstStringWanted.Add($Name) }
     if ($script:Pst.Lang -eq 'fr' -or $script:PstStringSets.ContainsKey($Name)) { return }
     if (-not $Text) {
         $file = Get-PstI18nPath $Name
@@ -875,9 +877,8 @@ function Set-PstLanguage {
     if ($Lang -notin 'fr', 'en') { $Lang = 'en' }
     $script:Pst.Lang = $Lang
     $script:PstStrings = @{}
-    $loaded = @($script:PstStringSets.Keys)
     $script:PstStringSets = @{}
-    foreach ($name in $loaded) { Import-PstStrings $name }
+    foreach ($name in @($script:PstStringWanted)) { Import-PstStrings $name }
 }
 
 

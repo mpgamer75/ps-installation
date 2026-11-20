@@ -278,7 +278,7 @@ function Select-Tasks {
         $t = @($Ordered)[[int]$n - 1]
         if (-not ($picked | Where-Object { $_.Id -eq $t.Id })) { $picked += $t }
     }
-    return @($picked)
+    return , @($picked)
 }
 
 # ── Affichage ────────────────────────────────────────────────────────────────
@@ -427,14 +427,14 @@ function Set-TaskState {
 
     if ($Action -eq 'rm') {
         foreach ($t in $targets) { Write-TodoStatus info (L 'À supprimer : n° {0} {1}' $t.Number $t.Text) }
-        if ($DryRun) { Write-TodoStatus info (L 'Simulation : rien n''a été supprimé.'); return @() }
+        if ($DryRun) { Write-TodoStatus info (L 'Simulation : rien n''a été supprimé.'); return , @() }
         if (-not $Yes) {
             if (-not (Test-PstInteractive)) { Write-TodoStatus err (L 'Session non interactive : ajoutez -Yes pour confirmer la suppression.'); return $null }
-            if (-not (Read-PstConfirm (L 'Supprimer définitivement ?') -DefaultYes)) { Write-TodoStatus info (L 'Annulé.'); return @() }
+            if (-not (Read-PstConfirm (L 'Supprimer définitivement ?') -DefaultYes)) { Write-TodoStatus info (L 'Annulé.'); return , @() }
         }
         Save-Tasks @($ordered | Where-Object { $ids -notcontains $_.Id })
         foreach ($t in $targets) { Write-TodoStatus ok (L 'Tâche supprimée : {0}' $t.Text) }
-        return @($targets)
+        return , @($targets)
     }
 
     $now = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
@@ -447,7 +447,7 @@ function Set-TaskState {
         if ($Action -eq 'done') { Write-TodoStatus ok (L 'Bravo, c''est fait : {0}' (Paint $t.Text 'Title' -Bold)) }
         else { Write-TodoStatus ok (L 'Tâche remise en cours : {0}' (Paint $t.Text 'Title' -Bold)) }
     }
-    return @($targets | ForEach-Object { Find-Ordered $_.Id })
+    return , @($targets | ForEach-Object { Find-Ordered $_.Id })
 }
 
 function Edit-Task {
@@ -455,7 +455,7 @@ function Edit-Task {
     $ordered = @(Get-OrderedTasks (Get-Tasks))
     $targets = Select-Tasks @($Number) $ordered
     if ($null -eq $targets) { return $null }
-    $target = $targets[0]
+    $target = @($targets)[0]
     if (-not $Text -and -not $DueText -and -not $PriorityText -and -not @($Tags | Where-Object { $_ }).Count) {
         Write-TodoStatus err (L 'Rien à modifier : donnez un nouveau texte, -Due, -Priority ou -Tag.')
         return $null

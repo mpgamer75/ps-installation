@@ -42,7 +42,7 @@ if ($Help -or (Test-PstHelpArg (@($Command, $Value) + @($Rest)))) {
             @('-Yes', (L 'Ne demande pas de confirmation')),
             @('-Json', (L 'Sortie JSON (liste ou « which »), pour les scripts'))
         ) `
-        -Examples @('path', 'path which python', 'path add C:\Outils\bin', 'path rm C:\Ancien\bin', 'path clean -DryRun') `
+        -Examples @('path', 'path which python', 'path add C:\Tools\bin', 'path rm C:\Old\bin', 'path clean -DryRun') `
         -Notes @(
             (L 'Sans -Machine, seul le PATH Utilisateur est modifié : aucun droit administrateur requis.'),
             (L 'Les %VARIABLES% (ex. %USERPROFILE%) sont conservées telles quelles ; ancienne valeur sauvegardée dans le dossier de données.'),
@@ -229,7 +229,7 @@ function Show-PathList {
     $width = Get-PstWidth -Max 120
     Show-PstHeader -Tool 'path' -Subtitle (L '{0} entrée(s)' $report.Count)
     $rows = @()
-    $dirW = [Math]::Max(24, $width - 48)
+    $dirW = [Math]::Max(24, $width - 54)
     foreach ($e in $report) {
         $num = [string]$e.Index
         if (-not $e.Active) { $num = '+' }
@@ -239,7 +239,7 @@ function Show-PathList {
         $rows += , @($num, (Get-ScopeLabel $e.Scope), (Get-StatusText $e), $shown)
     }
     Format-PstTable -Columns @(
-        @{ Name = (L 'N°'); Width = 3; Right = $true }, @{ Name = (L 'Portée'); Width = 11 }, @{ Name = (L 'État'); Width = 26 }, @{ Name = (L 'Dossier'); Width = $dirW }
+        @{ Name = (L 'N°'); Width = 3; Right = $true }, @{ Name = (L 'Portée'); Width = 11 }, @{ Name = (L 'État'); Width = 32 }, @{ Name = (L 'Dossier'); Width = $dirW }
     ) -Rows $rows | ForEach-Object { Write-Host "  $_" }
     Write-Host ''
     $missing = @($report | Where-Object { $_.Status -eq 'missing' }).Count
@@ -310,7 +310,12 @@ function Show-Which {
         $c = $shell[0]
         $def = [string]$c.Definition
         if ($c.CommandType -eq 'Function') { $def = $c.Name }
-        Write-PstStatus info (L 'Dans PowerShell, {0} « {1} » ({2}) passe avant le PATH.' ([string]$c.CommandType).ToLowerInvariant() $c.Name (Limit-PstText ($def -replace '\s+', ' ') 40))
+        $shown = Limit-PstText ($def -replace '\s+', ' ') 40
+        switch ([string]$c.CommandType) {
+            'Alias' { Write-PstStatus info (L 'Dans PowerShell, l''alias « {0} » ({1}) passe avant le PATH.' $c.Name $shown) }
+            'Function' { Write-PstStatus info (L 'Dans PowerShell, la fonction « {0} » passe avant le PATH.' $c.Name) }
+            default { Write-PstStatus info (L 'Dans PowerShell, la cmdlet « {0} » passe avant le PATH.' $c.Name) }
+        }
     }
     Write-Host ''
     if ($hits.Count) { $script:Code = 0; return }
@@ -324,7 +329,7 @@ function Assert-Writable {
         Write-PstStatus err (L 'Hors Windows, path est en lecture seule : modifiez le PATH dans le profil de votre shell (~/.profile, ~/.bashrc...).')
         return $false
     }
-    if ($Target -eq 'Machine' -and -not $testStore -and -not (Test-PstAdmin)) {
+    if ($Target -eq 'Machine' -and -not (Test-PstAdmin)) {
         Write-PstStatus err (L 'Le PATH Machine concerne tous les utilisateurs : il faut un terminal administrateur.')
         Write-Host (Paint ('    ' + (L 'Relancez la commande dans un terminal « Exécuter en tant qu''administrateur », ou omettez -Machine pour votre seul compte.')) 'Dim')
         return $false
@@ -404,9 +409,8 @@ function Remove-PathDir {
         $other = 'Machine'
         if ($Target -eq 'Machine') { $other = 'User' }
         if (@(Split-PathValue (Get-StoredPath $other) | Where-Object { (ConvertTo-PathKey $_) -eq $key }).Count) {
-            $hint = '-Machine'
-            if ($other -eq 'User') { $hint = (L 'sans -Machine') }
-            Write-PstStatus info (L 'Il figure dans le PATH {0} : relancez {1}.' (Get-ScopeLabel $other) $hint)
+            if ($other -eq 'Machine') { Write-PstStatus info (L 'Il figure dans le PATH Machine : ajoutez -Machine.') }
+            else { Write-PstStatus info (L 'Il figure dans le PATH Utilisateur : relancez sans -Machine.') }
         }
         elseif (@(Split-PathValue $env:PATH | Where-Object { (ConvertTo-PathKey $_) -eq $key }).Count) {
             Write-PstStatus info (L 'Il n''existe que dans cette session (ajouté par un programme ou un profil).')
