@@ -1,0 +1,19 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Windows PowerShell 5.1 lit les fichiers sans BOM en ANSI : BOM obligatoire dans src/ et tests/.
+[{src,tests}/**.ps1]
+charset = utf-8-bom
+
+# Amorces téléchargées par « irm | iex » : ASCII pur, sans BOM.
+[{install,uninstall}.ps1]
+charset = utf-8
+
+[*.{json,yml,md}]
+indent_size = 2

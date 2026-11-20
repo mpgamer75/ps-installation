@@ -1,0 +1,22 @@
+{
+  "name": "ps-tools",
+  "version": "2.0.0",
+  "description": "La boîte à outils du terminal Windows",
+  "repository": "https://github.com/mpgamer75/ps-installation",
+  "minPowerShellVersion": "5.1",
+  "core": [
+    { "source": "src/lib/PsTools.ps1", "destination": "lib/PsTools.ps1" },
+    { "source": "src/setup.ps1", "destination": "setup.ps1" }
+  ],
+  "tools": [
+    { "name": "pst", "category": "Gestion", "admin": "non", "required": true, "description": "Gestionnaire ps-tools : liste, diagnostic, mise à jour, désinstallation" },
+    { "name": "monitor", "category": "Système", "admin": "non", "description": "Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus" },
+    { "name": "sysinfo", "category": "Système", "admin": "non", "description": "Carte d'identité de la machine, façon neofetch" },
+    { "name": "clean", "category": "Système", "admin": "optionnel", "description": "Nettoyeur avec aperçu : temporaires, caches, corbeille" },
+    { "name": "dsize", "category": "Fichiers", "admin": "optionnel", "description": "Classe le contenu d'un dossier par taille (du -sh)" },
+    { "name": "ping-mon", "category": "Réseau", "admin": "non", "description": "Latence multi-hôtes : gigue, pertes, historique" },
+    { "name": "netinfo", "category": "Réseau", "admin": "non", "description": "Interfaces, adresses, DNS, Wi-Fi et IP publique" },
+    { "name": "ports", "category": "Réseau", "admin": "optionnel", "description": "Ports en écoute et processus associés (ss -ltnp)" },
+    { "name": "remind", "category": "Productivité", "admin": "non", "description": "Rappels avec notifications Windows" }
+  ]
+}
