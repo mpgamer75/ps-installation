@@ -7,6 +7,7 @@ BeforeAll {
     $script:Shell = (Get-Process -Id $PID).Path
     $script:Manifest = Get-Content (Join-Path $Root 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $env:NO_COLOR = '1'
+    $env:PSTOOLS_LANG = 'fr'   # les assertions portent sur les textes français ; l'anglais a ses propres tests
     $env:PSTOOLS_DATA = Join-Path ([IO.Path]::GetTempPath()) ("pst-data-" + [Guid]::NewGuid().ToString('N'))
     $env:PSTOOLS_TASK_PREFIX = 'PsToolsTest_Reminder_'   # ne touche jamais aux vrais rappels du poste
 

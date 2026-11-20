@@ -14,7 +14,12 @@ $script:Pst = @{
     Glyph     = @{}
     Theme     = @{}
     ThemeName = 'nuit'
+    Lang      = 'fr'
+    # Dossier de la bibliothèque (vide quand elle est chargée depuis le web par l'amorce).
+    LibDir    = $PSScriptRoot
 }
+$script:PstStrings = @{}
+$script:PstStringSets = @{}
 
 # Palettes : chaque outil n'utilise que ces sept rôles de couleur.
 $script:PstThemes = [ordered]@{
@@ -45,6 +50,9 @@ function Initialize-PstConsole {
     $theme = $env:PSTOOLS_THEME
     if (-not $theme) { try { $theme = [string](Get-PstConfig).theme } catch { $theme = $null } }
     Set-PstTheme $theme
+
+    $script:Pst.Lang = Get-PstLanguage
+    Import-PstStrings 'PsTools'
 
     if ($env:PSTOOLS_ASCII) {
         $script:Pst.Glyph = @{
@@ -715,6 +723,74 @@ function Get-PstEffectivePolicy {
     return 'Restricted'
 }
 
+# ── Langue ───────────────────────────────────────────────────────────────────
+# Le texte français sert de clé : L 'Texte {0}' $valeur affiche la traduction
+# anglaise (dictionnaires i18n/en/<nom>.psd1) ou, à défaut, le français.
+
+function Get-PstLanguage {
+    # Ordre : PSTOOLS_LANG, réglage enregistré, langue de Windows (fr*, sinon en).
+    $lang = $env:PSTOOLS_LANG
+    if (-not $lang) { try { $lang = [string](Get-PstConfig).language } catch { $lang = $null } }
+    if (-not $lang) {
+        $lang = 'en'
+        try { if ((Get-Culture).TwoLetterISOLanguageName -eq 'fr' -or (Get-UICulture).TwoLetterISOLanguageName -eq 'fr') { $lang = 'fr' } } catch { $null = $_ }
+    }
+    if ($lang -notin 'fr', 'en') { $lang = 'en' }
+    return $lang
+}
+
+function Get-PstI18nPath {
+    param([string]$Name)
+    if (-not $script:Pst.LibDir) { return $null }
+    return (Join-Path (Join-Path (Join-Path (Split-Path -Parent $script:Pst.LibDir) 'i18n') 'en') "$Name.psd1")
+}
+
+function Import-PstStrings {
+    # Charge un dictionnaire anglais. -Text : contenu déjà lu (amorce depuis le web).
+    param([string]$Name, [string]$Text)
+    if ($script:Pst.Lang -eq 'fr' -or $script:PstStringSets.ContainsKey($Name)) { return }
+    if (-not $Text) {
+        $file = Get-PstI18nPath $Name
+        if (-not $file -or -not (Test-Path -LiteralPath $file)) { return }
+        $Text = [IO.File]::ReadAllText($file, [Text.Encoding]::UTF8)
+    }
+    try {
+        # Fichier de données uniquement : le langage restreint interdit toute commande.
+        $block = [scriptblock]::Create($Text.TrimStart([char]0xFEFF))
+        $block.CheckRestrictedLanguage(@(), @(), $false)
+        $table = & $block
+        foreach ($entry in $table.GetEnumerator()) { $script:PstStrings[[string]$entry.Key] = [string]$entry.Value }
+        $script:PstStringSets[$Name] = $true
+    }
+    catch { $null = $_ }
+}
+
+function L {
+    # Traduit (si la langue est l'anglais) puis remplit les {0}, {1}...
+    param([Parameter(Position = 0)][AllowEmptyString()][string]$Text, [Parameter(Position = 1, ValueFromRemainingArguments = $true)][object[]]$Values)
+    $out = $Text
+    if ($script:Pst.Lang -ne 'fr' -and $script:PstStrings.ContainsKey($Text)) { $out = $script:PstStrings[$Text] }
+    if ($Values -and $Values.Count) { return ($out -f $Values) }
+    return $out
+}
+
+function Get-PstCulture {
+    # Culture d'affichage des dates (noms de jours et de mois) selon la langue choisie.
+    if ($script:Pst.Lang -eq 'en') { return [Globalization.CultureInfo]::GetCultureInfo('en-US') }
+    return [Globalization.CultureInfo]::GetCultureInfo('fr-FR')
+}
+
+function Set-PstLanguage {
+    param([string]$Lang)
+    if ($Lang -notin 'fr', 'en') { $Lang = 'en' }
+    $script:Pst.Lang = $Lang
+    $script:PstStrings = @{}
+    $loaded = @($script:PstStringSets.Keys)
+    $script:PstStringSets = @{}
+    foreach ($name in $loaded) { Import-PstStrings $name }
+}
+
+
 # ── Configuration et secrets ─────────────────────────────────────────────────
 # config.json : préférences (thème, assistant IA, intégration au shell).
 # secrets.json : clés d'API, chiffrées pour le compte Windows courant (DPAPI).
@@ -765,7 +841,8 @@ function Write-PstJsonFile {
 function Get-PstConfig {
     # Toujours une configuration complète : valeurs par défaut recouvertes par config.json.
     $config = @{
-        theme = 'nuit'
+        theme    = 'nuit'
+        language = ''
         ai    = @{ provider = ''; model = ''; effort = 'low'; budget = 0; baseUrl = ''; prices = @{} }
         shell = @{ prompt = $true; keys = $true; aliases = $true; remedy = ''; trustedHost = ''; previousPolicy = '' }
     }
