@@ -537,7 +537,7 @@ Describe 'Intégration au shell' {
     }
 
     It 'l''invite colorée se construit sans erreur' {
-        $out = Invoke-InShell "`$global:PstShell.Ansi = `$true; `$p = Get-PstPromptText -Success `$false -ExitCode 2; `$p.Contains([string][char]27 + '[1;38;2;'); `$Error.Count"
+        $out = Invoke-InShell "`$global:PstShell.Ansi = `$true; `$before = `$Error.Count; `$p = Get-PstPromptText -Success `$false -ExitCode 2; `$p.Contains([string][char]27 + '[1;38;2;'); `$Error.Count - `$before"
         $lines = @($out -split "`n" | Where-Object { $_.Trim() })
         $lines[0].Trim() | Should -Be 'True'
         $lines[1].Trim() | Should -Be '0'
