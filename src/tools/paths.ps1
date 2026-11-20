@@ -4,7 +4,7 @@
 .DESCRIPTION
     Liste chaque dossier du PATH avec sa portée (Machine, Utilisateur ou session seule),
     son état (introuvable, doublon, sans exécutable) et son ordre ; indique quel
-    programme l'emporte (« path which ») ; ajoute, retire ou nettoie des entrées.
+    programme l'emporte (« paths which ») ; ajoute, retire ou nettoie des entrées.
     Les modifications portent sur le registre (HKCU\Environment, ou HKLM pour -Machine,
     qui exige un terminal administrateur) en conservant les %VARIABLES% telles quelles,
     puis Windows est prévenu du changement. Aucun accès réseau.
@@ -24,16 +24,16 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
-Import-PstStrings 'path'
+Import-PstStrings 'paths'
 
 if ($Help -or (Test-PstHelpArg (@($Command, $Value) + @($Rest)))) {
-    Show-PstHelp -Name 'path' -Synopsis (L 'Inspecte et répare le PATH : portée, doublons, dossiers disparus.') `
+    Show-PstHelp -Name 'paths' -Synopsis (L 'Inspecte et répare le PATH : portée, doublons, dossiers disparus.') `
         -Usage @(
-            (L 'path                          chaque entrée, sa portée et son état'),
-            (L 'path which <programme>        quelle copie l''emporte, et celles masquées'),
-            (L 'path add <dossier> [-Machine] ajoute un dossier (fin du PATH, ou -First)'),
-            (L 'path rm <dossier> [-Machine]  retire un dossier'),
-            (L 'path clean [-DryRun] [-Yes]   retire les entrées disparues et les doublons')
+            (L 'paths                           chaque entrée, sa portée et son état'),
+            (L 'paths which <programme>         quelle copie l''emporte, et celles masquées'),
+            (L 'paths add <dossier> [-Machine]  ajoute un dossier (fin du PATH, ou -First)'),
+            (L 'paths rm <dossier> [-Machine]   retire un dossier'),
+            (L 'paths clean [-DryRun] [-Yes]    retire les entrées disparues et les doublons')
         ) `
         -Options @(
             @('-Machine', (L 'Agit sur le PATH de tous les utilisateurs (terminal administrateur requis)')),
@@ -42,7 +42,7 @@ if ($Help -or (Test-PstHelpArg (@($Command, $Value) + @($Rest)))) {
             @('-Yes', (L 'Ne demande pas de confirmation')),
             @('-Json', (L 'Sortie JSON (liste ou « which »), pour les scripts'))
         ) `
-        -Examples @('path', 'path which python', 'path add C:\Tools\bin', 'path rm C:\Old\bin', 'path clean -DryRun') `
+        -Examples @('paths', 'paths which python', 'paths add C:\Tools\bin', 'paths rm C:\Old\bin', 'paths clean -DryRun') `
         -Notes @(
             (L 'Sans -Machine, seul le PATH Utilisateur est modifié : aucun droit administrateur requis.'),
             (L 'Les %VARIABLES% (ex. %USERPROFILE%) sont conservées telles quelles ; ancienne valeur sauvegardée dans le dossier de données.'),
@@ -227,7 +227,7 @@ function Show-PathList {
     $report = @(Get-PathReport)
     if ($Json) { ConvertTo-Json -InputObject @($report) -Depth 3; $script:Code = 0; return }
     $width = Get-PstWidth -Max 120
-    Show-PstHeader -Tool 'path' -Subtitle (L '{0} entrée(s)' $report.Count)
+    Show-PstHeader -Tool 'paths' -Subtitle (L '{0} entrée(s)' $report.Count)
     $rows = @()
     $dirW = [Math]::Max(24, $width - 54)
     foreach ($e in $report) {
@@ -246,7 +246,7 @@ function Show-PathList {
     $dups = @($report | Where-Object { $_.Status -eq 'duplicate' }).Count
     if ($missing -or $dups) {
         Write-PstStatus warn (L '{0} dossier(s) introuvable(s), {1} doublon(s).' $missing $dups)
-        if ($isWin) { Write-Host (Paint ('    ' + (L '« path clean -DryRun » pour voir ce qui serait retiré du PATH Utilisateur.')) 'Dim') }
+        if ($isWin) { Write-Host (Paint ('    ' + (L '« paths clean -DryRun » pour voir ce qui serait retiré du PATH Utilisateur.')) 'Dim') }
     }
     else { Write-PstStatus ok (L 'Aucun dossier introuvable ni doublon.') }
     if (@($report | Where-Object { -not $_.Active }).Count) { Write-PstStatus info (L 'Les entrées « + » sont enregistrées mais pas encore actives dans ce terminal.') }
@@ -283,7 +283,7 @@ function Find-Program {
 
 function Show-Which {
     param([string]$Name)
-    if (-not $Name) { Write-PstStatus err (L 'Indiquez un programme : path which <nom>'); $script:Code = 1; return }
+    if (-not $Name) { Write-PstStatus err (L 'Indiquez un programme : paths which <nom>'); $script:Code = 1; return }
     $hits = @(Find-Program $Name)
     $shell = @(Get-Command -Name $Name -CommandType Alias, Function, Cmdlet -ErrorAction SilentlyContinue | Select-Object -First 1)
     if ($Json) {
@@ -292,7 +292,7 @@ function Show-Which {
         [ordered]@{ Name = $Name; Winner = @($hits | Select-Object -First 1); Shadowed = @($hits | Select-Object -Skip 1); PowerShell = $ps } | ConvertTo-Json -Depth 4
         if ($hits.Count) { $script:Code = 0; return } else { $script:Code = 1; return }
     }
-    Show-PstHeader -Tool 'path' -Subtitle "which $Name"
+    Show-PstHeader -Tool 'paths' -Subtitle "which $Name"
     if (-not $hits.Count) {
         Write-PstStatus warn (L '« {0} » est introuvable dans le PATH.' $Name)
     }
@@ -357,13 +357,13 @@ function Write-Applied {
 
 function Add-PathDir {
     param([string]$Dir, [string]$Target)
-    if (-not $Dir) { Write-PstStatus err (L 'Indiquez un dossier : path add <dossier>'); $script:Code = 1; return }
+    if (-not $Dir) { Write-PstStatus err (L 'Indiquez un dossier : paths add <dossier>'); $script:Code = 1; return }
     if (-not (Assert-Writable $Target)) { $script:Code = 1; return }
     $entry = $Dir.Trim().Trim('"')
     if ($entry -notmatch '%' -and (Test-Path -LiteralPath $entry -PathType Container)) { $entry = (Resolve-Path -LiteralPath $entry).ProviderPath }
     if ($entry.Length -gt 3) { $entry = $entry.TrimEnd('\', '/') }
     $key = ConvertTo-PathKey $entry
-    Show-PstHeader -Tool 'path' -Subtitle ('add ' + (Get-ScopeLabel $Target))
+    Show-PstHeader -Tool 'paths' -Subtitle ('add ' + (Get-ScopeLabel $Target))
     foreach ($scope in @($Target) + @(@('User', 'Machine') | Where-Object { $_ -ne $Target })) {
         foreach ($e in (Split-PathValue (Get-StoredPath $scope))) {
             if ((ConvertTo-PathKey $e) -eq $key) {
@@ -397,13 +397,13 @@ function Add-PathDir {
 
 function Remove-PathDir {
     param([string]$Dir, [string]$Target)
-    if (-not $Dir) { Write-PstStatus err (L 'Indiquez un dossier : path rm <dossier>'); $script:Code = 1; return }
+    if (-not $Dir) { Write-PstStatus err (L 'Indiquez un dossier : paths rm <dossier>'); $script:Code = 1; return }
     if (-not (Assert-Writable $Target)) { $script:Code = 1; return }
     $key = ConvertTo-PathKey $Dir
     $old = Get-StoredPath $Target
     $segments = @($old -split [regex]::Escape($sep))
     $removed = @($segments | Where-Object { $_.Trim() -and ((ConvertTo-PathKey $_) -eq $key) })
-    Show-PstHeader -Tool 'path' -Subtitle ('rm ' + (Get-ScopeLabel $Target))
+    Show-PstHeader -Tool 'paths' -Subtitle ('rm ' + (Get-ScopeLabel $Target))
     if (-not $removed.Count) {
         Write-PstStatus err (L 'Absent du PATH {0} : {1}' (Get-ScopeLabel $Target) $Dir)
         $other = 'Machine'
@@ -460,7 +460,7 @@ function Invoke-Clean {
         [ordered]@{ Target = $Target; Remove = @($plan.Drop); Kept = @(Split-PathValue $plan.New); Unresolved = @($plan.Warn) } | ConvertTo-Json -Depth 4
         if ($DryRun -or -not $Yes) { $script:Code = 0; return }
     }
-    if (-not $Json) { Show-PstHeader -Tool 'path' -Subtitle ('clean ' + (Get-ScopeLabel $Target)) }
+    if (-not $Json) { Show-PstHeader -Tool 'paths' -Subtitle ('clean ' + (Get-ScopeLabel $Target)) }
     foreach ($w in $plan.Warn) { Write-PstStatus warn (L 'Conservé (variable inconnue ici, à vérifier) : {0}' $w) }
     if (-not $plan.Drop.Count -and -not $plan.Empty) {
         Write-PstStatus ok (L 'PATH {0} déjà propre : rien à retirer.' (Get-ScopeLabel $Target))

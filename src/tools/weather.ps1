@@ -31,7 +31,7 @@ if ($Help -or (Test-PstHelpArg (@($City) + @($Rest)))) {
         ) `
         -Options @(
             @((L 'ville'), (L 'Ville à afficher (défaut : ville mémorisée, sinon position de l''IP)')),
-            @('-Set <ville>', (L 'Mémorise la ville par défaut')),
+            @((L '-Set <ville>'), (L 'Mémorise la ville par défaut')),
             @('-Imperial', (L 'Unités impériales (°F, mph, pouces)')),
             @('-Metric', (L 'Unités métriques (défaut)')),
             @('-Json', (L 'Sortie JSON, pour les scripts'))

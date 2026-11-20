@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    gi — génère un fichier .gitignore à partir des modèles de toptal.com/developers/gitignore.
+    gitignore — génère un fichier .gitignore à partir des modèles de toptal.com/developers/gitignore.
 .DESCRIPTION
     Affiche, écrit ou complète le .gitignore du projet sans jamais dupliquer une règle
     ni toucher aux lignes existantes. Sans argument dans un dépôt Git, propose les
@@ -24,16 +24,16 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
-Import-PstStrings 'gi'
+Import-PstStrings 'gitignore'
 $ProgressPreference = 'SilentlyContinue'
 
 if ($Help -or (Test-PstHelpArg (@($Templates) + @($Rest)))) {
-    Show-PstHelp -Name 'gi' -Synopsis (L 'Génère un .gitignore à partir de modèles (Node, Python, Visual Studio...).') `
+    Show-PstHelp -Name 'gitignore' -Synopsis (L 'Génère un .gitignore à partir de modèles (Node, Python, Visual Studio...).') `
         -Usage @(
-            (L 'gi                              suggère des modèles d''après le dépôt Git courant'),
-            (L 'gi <modèles>                    affiche le .gitignore (ex. node,python)'),
-            (L 'gi <modèles> -Write             ajoute les règles manquantes à ./.gitignore'),
-            (L 'gi -List [filtre]               modèles disponibles')
+            (L 'gitignore                         suggère des modèles d''après le dépôt Git courant'),
+            (L 'gitignore <modèles>               affiche le .gitignore (ex. node,python)'),
+            (L 'gitignore <modèles> -Write        ajoute les règles manquantes à ./.gitignore'),
+            (L 'gitignore -List [filtre]          modèles disponibles')
         ) `
         -Options @(
             @('-Write', (L 'Écrit dans le fichier (fusion : aucune ligne dupliquée, contenu existant conservé)')),
@@ -45,10 +45,9 @@ if ($Help -or (Test-PstHelpArg (@($Templates) + @($Rest)))) {
             @('-Offline', (L 'N''utilise que le cache, aucune requête réseau')),
             @('-Json', (L 'Sortie JSON (avec -List ou les suggestions)'))
         ) `
-        -Examples @('gi node,visualstudio', 'gi python -Write', 'gi node > .gitignore', 'gi -List java') `
+        -Examples @('gitignore node,visualstudio', 'gitignore python -Write', 'gitignore node > .gitignore', 'gitignore -List java') `
         -Notes @(
-            (L 'Source : www.toptal.com/developers/gitignore (HTTPS), mise en cache 7 jours.'),
-            (L 'Dans PowerShell, « gi » est aussi l''alias de Get-Item : tapez « gi.cmd » si l''alias passe avant.')
+            (L 'Source : www.toptal.com/developers/gitignore (HTTPS), mise en cache 7 jours.')
         )
     exit 0
 }
@@ -57,7 +56,7 @@ if ($Help -or (Test-PstHelpArg (@($Templates) + @($Rest)))) {
 
 $apiBase = 'https://www.toptal.com/developers/gitignore/api/'
 $apiHost = 'www.toptal.com'
-$cacheDir = Join-Path (Get-PstDataDir) 'gi'
+$cacheDir = Join-Path (Get-PstDataDir) 'gitignore'
 $maxAge = [TimeSpan]::FromDays(7)
 $utf8 = New-Object Text.UTF8Encoding $false
 
@@ -87,7 +86,6 @@ function Read-Cache {
     # Retourne @{ Text; Fresh } ou $null.
     param([string]$File)
     if (-not (Test-Path -LiteralPath $File)) { return $null }
-    $age = (Get-Date) - (Get-Item -LiteralPath $File).LastWriteTime
     return @{ Text = [IO.File]::ReadAllText($File, [Text.Encoding]::UTF8); Fresh = ($age -lt $maxAge) }
 }
 
@@ -221,7 +219,7 @@ function Merge-GitIgnoreText {
     }
     if ($rules -eq 0) { return @{ Text = $Existing; Added = @(); Rules = 0 } }
 
-    $block = @("# gi: $Label (https://www.toptal.com/developers/gitignore)") + @($added)
+    $block = @("# gitignore: $Label (https://www.toptal.com/developers/gitignore)") + @($added)
     $text = $Existing
     if ($text.Length -and -not ($text.EndsWith("`n"))) { $text += $nl }
     if ($text.Trim().Length) { $text += $nl }
@@ -287,7 +285,7 @@ function Get-TemplateText {
             foreach ($u in $unknown) {
                 $close = @(Get-CloseNames $u $known)
                 if ($close.Count) { Write-PstStatus err (L 'Modèle inconnu : « {0} ». Vouliez-vous dire : {1} ?' $u ($close -join ', ')) }
-                else { Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gi -List »).' $u) }
+                else { Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gitignore -List »).' $u) }
             }
             return $null
         }
@@ -296,12 +294,12 @@ function Get-TemplateText {
     $file = Join-Path (Join-Path $cacheDir 'templates') (($key -replace '[^a-z0-9+,.\-]', '_') + '.gitignore')
     $r = Get-CachedOrFetch $file ($apiBase + [Uri]::EscapeDataString($key).Replace('%2C', ','))
     if (-not $r.Text) {
-        if ($r.Status -eq 404) { Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gi -List »).' ($Names -join ', ')) }
+        if ($r.Status -eq 404) { Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gitignore -List »).' ($Names -join ', ')) }
         else { Write-PstStatus err $r.Error }
         return $null
     }
     if ($r.Text -match '#!! ERROR: (.+?) is undefined') {
-        Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gi -List »).' $Matches[1])
+        Write-PstStatus err (L 'Modèle inconnu : « {0} » (voir « gitignore -List »).' $Matches[1])
         return $null
     }
     return $r.Text
@@ -322,7 +320,7 @@ function Invoke-Write {
     }
     $merge = Merge-GitIgnoreText -Existing $existing -Addition $text -Label ($Names -join ', ')
 
-    Show-PstHeader -Tool 'gi' -Subtitle ($Names -join ', ')
+    Show-PstHeader -Tool 'gitignore' -Subtitle ($Names -join ', ')
     if ($merge.Rules -eq 0) {
         Write-PstStatus ok (L '{0} contient déjà toutes ces règles : rien à ajouter.' $target)
         Write-Host ''
@@ -368,7 +366,7 @@ if ($List) {
     if ($Json) { ConvertTo-Json -InputObject @($items) -Compress; exit 0 }
     $subtitle = L '{0} modèle(s)' $items.Count
     if ($filter) { $subtitle = L '{0} modèle(s) contenant « {1} »' $items.Count $filter }
-    Show-PstHeader -Tool 'gi' -Subtitle $subtitle
+    Show-PstHeader -Tool 'gitignore' -Subtitle $subtitle
     if (-not $items.Count) { Write-PstStatus info (L 'Aucun modèle ne correspond.'); Write-Host ''; exit 0 }
     $colW = 2 + [Math]::Max(8, (@($items | ForEach-Object { $_.Length }) | Measure-Object -Maximum).Maximum)
     $perLine = [Math]::Max(1, [int][Math]::Floor(((Get-PstWidth) - 4) / $colW))
@@ -398,9 +396,9 @@ if ($words.Count) {
 $here = (Get-Location).ProviderPath
 $gitRoot = Find-GitRoot $here
 if (-not $gitRoot) {
-    Show-PstHeader -Tool 'gi'
+    Show-PstHeader -Tool 'gitignore'
     Write-PstStatus info (L 'Pas de dépôt Git ici : indiquez les modèles voulus.')
-    Write-Host (Paint ('    gi node,python  ' + $script:Pst.Glyph.Dot + '  gi -List  ' + $script:Pst.Glyph.Dot + '  gi -Help') 'Dim')
+    Write-Host (Paint ('    gitignore node,python  ' + $script:Pst.Glyph.Dot + '  gitignore -List  ' + $script:Pst.Glyph.Dot + '  gitignore -Help') 'Dim')
     Write-Host ''
     exit 0
 }
@@ -418,7 +416,7 @@ if ($Json) {
     exit 0
 }
 
-Show-PstHeader -Tool 'gi' -Subtitle (Split-Path -Leaf $gitRoot)
+Show-PstHeader -Tool 'gitignore' -Subtitle (Split-Path -Leaf $gitRoot)
 if (-not $found.Count) { Write-PstStatus info (L 'Aucun type de projet reconnu dans ce dépôt.') }
 $keys = @($candidates.Keys)
 if (-not (Test-PstInteractive)) {
@@ -429,7 +427,7 @@ if (-not (Test-PstInteractive)) {
     }
     $chosen = @($keys | Where-Object { $candidates[$_].On })
     Write-Host ''
-    Write-PstStatus info (L 'Pour écrire ces modèles : {0}' ('gi ' + ($chosen -join ',') + ' -Write'))
+    Write-PstStatus info (L 'Pour écrire ces modèles : {0}' ('gitignore ' + ($chosen -join ',') + ' -Write'))
     Write-Host ''
     exit 0
 }

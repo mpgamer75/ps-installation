@@ -39,7 +39,7 @@ if ($Help -or (Test-PstHelpArg $parts)) {
             @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
         -Examples @(
-            'calc "3,5 * 2 + sqrt(16)"',
+            (L 'calc "3,5 * 2 + sqrt(16)"'),
             (L 'calc "15% de 80"'),
             'calc "80 + 20%"',
             (L 'calc 10 km en mi'),
@@ -651,7 +651,7 @@ function Invoke-Calc {
     $r = $value * $rate
     $note = L '1 {0} = {1} {2} · taux du {3}' $fc (Format-Number $rate -MaxDecimals 6) $tc (Format-RateDate $rates.Date)
     return [ordered]@{
-        Kind = 'currency'; Input = $Text.Trim(); Value = $r; Unit = $tc; Text = ((Format-Money $r) + ' ' + $tc); Plain = (Format-Money $r -Plain)
+        Kind = 'currency'; Input = $Text.Trim(); Value = [Math]::Round($r, 4); Unit = $tc; Text = ((Format-Money $r) + ' ' + $tc); Plain = (Format-Money $r -Plain)
         Note = $note; Stale = [bool]$rates.Stale; Rate = $rate; RatesDate = $rates.Date; Source = $rates.Source; Reason = $rates.Reason
     }
 }

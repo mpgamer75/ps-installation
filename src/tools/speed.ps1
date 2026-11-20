@@ -24,7 +24,7 @@ if ($Help -or (Test-PstHelpArg $Rest)) {
     Show-PstHelp -Name 'speed' -Synopsis (L 'Mesure la latence et les débits de votre connexion Internet.') `
         -Usage @((L 'speed [-Size <Mo>] [-NoUpload] [-Json]')) `
         -Options @(
-            @('-Size <Mo>', (L 'Volume maximal téléchargé, de 5 à 200 Mo (défaut : 25)')),
+            @((L '-Size <Mo>'), (L 'Volume maximal téléchargé, de 5 à 200 Mo (défaut : 25)')),
             @('-NoUpload', (L 'Ne mesure pas l''envoi (économise jusqu''à 10 Mo)')),
             @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
@@ -86,7 +86,10 @@ function Get-Median {
 function Format-Megabytes {
     # Volumes annoncés en unités décimales (25 Mo = 25 000 000 octets), comme les débits.
     param([double]$Bytes)
-    return (L '{0} Mo' ($Bytes / 1e6).ToString('N1', $culture))
+    $format = 'N1'
+    if ($Bytes % 1000000 -eq 0) { $format = 'N0' }
+    $text = ($Bytes / 1e6).ToString($format, $culture)
+    return (L '{0} Mo' $text)
 }
 
 function Format-Mbps {
@@ -289,7 +292,7 @@ else {
         $client.Timeout = [TimeSpan]::FromSeconds(30)
         $client.DefaultRequestHeaders.UserAgent.ParseAdd('ps-tools-speed/1.0')
 
-        if ($interactive) { Write-Host ('  ' + (Paint "$($script:Pst.Glyph.Pointer) $(L 'Mesure de la latence...')" 'Dim')) -NoNewline }
+        if ($interactive) { Write-Host ('  ' + (Paint ($script:Pst.Glyph.Pointer + ' ' + (L 'Mesure de la latence...')) 'Dim')) -NoNewline }
         $lat = Measure-Latency $client
         Clear-ProgressLine
         $result.LatencyMs = [Math]::Round($lat.Ms, 1); $result.JitterMs = [Math]::Round($lat.Jitter, 1); $result.Server = $lat.Server

@@ -312,6 +312,44 @@
         "timer -Pomodoro",
         "timer -Stopwatch"
       ]
+    },
+    {
+      "name": "gitignore",
+      "category": "Code",
+      "admin": "non",
+      "description": "Génère et complète le .gitignore (modèles toptal), sans doublon",
+      "description_en": "Generates and merges .gitignore files (toptal templates), no dupes",
+      "examples": [
+        "gitignore",
+        "gitignore node,visualstudio -Write",
+        "gitignore -List py"
+      ]
+    },
+    {
+      "name": "cheat",
+      "category": "Code",
+      "admin": "non",
+      "description": "Exemples prêts à copier d'une commande (tldr, cheat.sh), hors ligne",
+      "description_en": "Ready-to-copy command examples (tldr, cheat.sh), works offline",
+      "examples": [
+        "cheat tar",
+        "cheat git rebase",
+        "cheat robocopy",
+        "cheat -Search archive"
+      ]
+    },
+    {
+      "name": "paths",
+      "category": "Système",
+      "admin": "optionnel",
+      "description": "Inspecte et répare le PATH : portée, doublons, dossiers disparus",
+      "description_en": "Inspects and fixes the PATH: scope, duplicates, missing folders",
+      "examples": [
+        "paths",
+        "paths which python",
+        "paths clean -DryRun",
+        "paths add C:\\Tools\\bin"
+      ]
     }
   ]
 }

@@ -60,8 +60,8 @@ BeforeAll {
         ''
         '# End of https://www.toptal.com/developers/gitignore/api/node'
     ) -join "`n"
-    Write-Utf8 (Join-Path (Join-Path $env:PSTOOLS_DATA 'gi') 'list.txt') "go,node,python`npythonvanilla,visualstudio,windows"
-    Write-Utf8 (Join-Path (Join-Path (Join-Path $env:PSTOOLS_DATA 'gi') 'templates') 'node.gitignore') $script:NodeTemplate
+    Write-Utf8 (Join-Path (Join-Path $env:PSTOOLS_DATA 'gitignore') 'list.txt') "go,node,python`npythonvanilla,visualstudio,windows"
+    Write-Utf8 (Join-Path (Join-Path (Join-Path $env:PSTOOLS_DATA 'gitignore') 'templates') 'node.gitignore') $script:NodeTemplate
 
     $script:TarFr = @(
         '# tar'
@@ -90,7 +90,7 @@ AfterAll {
 }
 
 Describe 'Aide des outils développeur' {
-    It '<_> -Help répond en français et en anglais' -ForEach @('gi', 'cheat', 'path') {
+    It '<_> -Help répond en français et en anglais' -ForEach @('gitignore', 'cheat', 'paths') {
         $r = Invoke-Tool $_ @('-Help')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'UTILISATION'
@@ -102,21 +102,21 @@ Describe 'Aide des outils développeur' {
     }
 }
 
-Describe 'gi' {
+Describe 'gitignore' {
     It 'liste et filtre les modèles depuis le cache' {
-        $r = Invoke-Tool 'gi' @('-List', 'py', '-Offline')
+        $r = Invoke-Tool 'gitignore' @('-List', 'py', '-Offline')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'pythonvanilla'
         $r.Output | Should -Not -Match '\bnode\b'
-        $json = (Invoke-Tool 'gi' @('-List', '-Json', '-Offline')).Output | ConvertFrom-Json
+        $json = (Invoke-Tool 'gitignore' @('-List', '-Json', '-Offline')).Output | ConvertFrom-Json
         @($json).Count | Should -Be 6
     }
 
     It 'affiche un modèle et refuse un nom inconnu avec une suggestion' {
-        $r = Invoke-Tool 'gi' @('node', '-Offline')
+        $r = Invoke-Tool 'gitignore' @('node', '-Offline')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'node_modules/'
-        $bad = Invoke-Tool 'gi' @('nod', '-Offline')
+        $bad = Invoke-Tool 'gitignore' @('nod', '-Offline')
         $bad.ExitCode | Should -Be 1
         $bad.Output | Should -Match 'Modèle inconnu : « nod »'
         $bad.Output | Should -Match 'node'
@@ -129,10 +129,10 @@ Describe 'gi' {
         Write-Utf8 $file $original
         Push-Location $dir
         try {
-            (Invoke-Tool 'gi' @('node', '-Write', '-Offline')).ExitCode | Should -Be 1      # pas de -Yes
-            (Invoke-Tool 'gi' @('node', '-DryRun', '-Offline')).ExitCode | Should -Be 0
+            (Invoke-Tool 'gitignore' @('node', '-Write', '-Offline')).ExitCode | Should -Be 1      # pas de -Yes
+            (Invoke-Tool 'gitignore' @('node', '-DryRun', '-Offline')).ExitCode | Should -Be 0
             [IO.File]::ReadAllText($file) | Should -BeExactly $original
-            $r = Invoke-Tool 'gi' @('node', '-Write', '-Yes', '-Offline')
+            $r = Invoke-Tool 'gitignore' @('node', '-Write', '-Yes', '-Offline')
             $r.ExitCode | Should -Be 0
             $text = [IO.File]::ReadAllText($file)
             $text.StartsWith($original) | Should -BeTrue
@@ -141,7 +141,7 @@ Describe 'gi' {
             @($lines | Where-Object { $_ -eq 'node_modules/' }).Count | Should -Be 1
             $text | Should -Not -Match 'Created by'
             $text | Should -Not -Match "[^`r]`n"                                            # fins de ligne CRLF conservées
-            $again = Invoke-Tool 'gi' @('node', '-Write', '-Yes', '-Offline')
+            $again = Invoke-Tool 'gitignore' @('node', '-Write', '-Yes', '-Offline')
             $again.Output | Should -Match 'rien à ajouter'
             [IO.File]::ReadAllText($file) | Should -BeExactly $text
         }
@@ -149,14 +149,14 @@ Describe 'gi' {
     }
 
     It 'omet les sections dont toutes les règles existent déjà' {
-        Import-ToolFunction 'gi' 'Merge-GitIgnoreText'
+        Import-ToolFunction 'gitignore' 'Merge-GitIgnoreText'
         $addition = "### A ###`n# a`nx`n`n### B ###`n# only comments`n#`n`n# b`ny`n"
         $m = Merge-GitIgnoreText -Existing "x`n" -Addition $addition -Label 'a, b'
         $m.Rules | Should -Be 1
         $m.Text | Should -Not -Match '### A ###'
         $m.Text | Should -Match '### B ###'
         $m.Text | Should -Match '# only comments'
-        $m.Text | Should -Match "(?m)^# gi: a, b"
+        $m.Text | Should -Match "(?m)^# gitignore: a, b"
         (Merge-GitIgnoreText -Existing "x`ny`n" -Addition $addition -Label 'a').Rules | Should -Be 0
     }
 
@@ -166,22 +166,22 @@ Describe 'gi' {
         foreach ($f in 'package.json', 'go.mod', 'App.csproj', (Join-Path 'api' 'requirements.txt')) { Write-Utf8 (Join-Path $dir $f) '' }
         Push-Location $dir
         try {
-            $r = Invoke-Tool 'gi'
+            $r = Invoke-Tool 'gitignore'
             $r.ExitCode | Should -Be 0
-            $r.Output | Should -Match 'gi node,visualstudio,python,go,\w+ -Write'
-            $json = (Invoke-Tool 'gi' @('-Json')).Output | ConvertFrom-Json
+            $r.Output | Should -Match 'gitignore node,visualstudio,python,go,\w+ -Write'
+            $json = (Invoke-Tool 'gitignore' @('-Json')).Output | ConvertFrom-Json
             @($json | Where-Object { $_.Suggested } | ForEach-Object { $_.Name }) | Should -Contain 'python'
             ($json | Where-Object { $_.Name -eq 'python' }).Reason | Should -Be 'api/requirements.txt'
         }
         finally { Pop-Location; Remove-Item $dir -Recurse -Force }
         $outside = New-TempDir
         Push-Location $outside
-        try { (Invoke-Tool 'gi').Output | Should -Match 'Pas de dépôt Git' }
+        try { (Invoke-Tool 'gitignore').Output | Should -Match 'Pas de dépôt Git' }
         finally { Pop-Location; Remove-Item $outside -Recurse -Force }
     }
 
     It 'télécharge un vrai modèle' -Skip:(-not $env:PSTOOLS_NETWORK_TESTS) {
-        $r = Invoke-Tool 'gi' @('python', '-Update')
+        $r = Invoke-Tool 'gitignore' @('python', '-Update')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match '__pycache__'
     }
@@ -246,7 +246,7 @@ Describe 'cheat' {
     }
 }
 
-Describe 'path' {
+Describe 'paths' {
     BeforeAll {
         $script:Base = New-TempDir
         foreach ($d in 'first', 'a', 'b', 'noexe', 'new') { New-Item -ItemType Directory -Path (Join-Path $Base $d) | Out-Null }
@@ -267,7 +267,7 @@ Describe 'path' {
             $saved = $env:PATH
             $env:PSTOOLS_TEST_WINDOWS = '1'; $env:PSTOOLS_PATH_REGISTRY = $script:Store
             if ($Session.Count) { $env:PATH = (@((Join-Path $script:Base 'first')) + $Session) -join ';' }
-            try { return (Invoke-Tool 'path' $Arguments) }
+            try { return (Invoke-Tool 'paths' $Arguments) }
             finally { $env:PATH = $saved; Remove-Item Env:PSTOOLS_TEST_WINDOWS, Env:PSTOOLS_PATH_REGISTRY -ErrorAction SilentlyContinue }
         }
     }
@@ -371,7 +371,7 @@ Describe 'path' {
     It 'hors Windows, liste $env:PATH en lecture seule' -Skip:($IsWindows -or $PSVersionTable.PSVersion.Major -lt 6) {
         $saved = $env:PATH
         $env:PATH = (@($script:A, $script:Missing, $script:A, $saved) -join [IO.Path]::PathSeparator)
-        try { $r = Invoke-Tool 'path'; $add = Invoke-Tool 'path' @('add', $script:B) }
+        try { $r = Invoke-Tool 'paths'; $add = Invoke-Tool 'paths' @('add', $script:B) }
         finally { $env:PATH = $saved }
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'introuvable'
