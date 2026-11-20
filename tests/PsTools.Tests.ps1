@@ -123,7 +123,7 @@ Describe 'Bibliothèque' {
 }
 
 Describe 'Aide des outils' {
-    It '<_> -Help répond sans erreur' -ForEach @('pst', 'ask', 'monitor', 'sysinfo', 'clean', 'watch', 'logtail', 'events', 'gst', 'loc', 'serve', 'dev', 'dsize', 'ping-mon', 'netinfo', 'ports', 'remind') {
+    It '<_> -Help répond sans erreur' -ForEach @('pst', 'pst-uninstall', 'ask', 'monitor', 'sysinfo', 'clean', 'watch', 'logtail', 'events', 'gst', 'loc', 'serve', 'dev', 'dsize', 'ping-mon', 'netinfo', 'ports', 'remind') {
         $r = Invoke-Tool $_ @('-Help')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'UTILISATION'
@@ -165,13 +165,35 @@ Describe 'Installation' {
     It 'réinstalle une sélection et retire les outils non choisis' {
         $null = & $Shell -NoProfile -File $Installer -InstallRoot $Dest -NoPath -Yes -Tools 'dsize,remind' 2>&1
         $names = @(Get-ChildItem (Join-Path $Dest 'bin') -Filter '*.cmd' | ForEach-Object { $_.BaseName } | Sort-Object)
-        ($names -join ',') | Should -Be 'dsize,pst,remind'
+        ($names -join ',') | Should -Be 'dsize,pst,pst-uninstall,remind'
         (Join-Path (Join-Path (Join-Path $Dest 'app') 'shell') 'PsTools.Shell.ps1') | Should -Exist
     }
 
     It 'refuse un outil inconnu' {
         $out = & $Shell -NoProfile -File $Installer -InstallRoot $Dest -NoPath -Yes -Tools 'inexistant' 2>&1
         (@($out) -join "`n") | Should -Match 'inconnu'
+    }
+
+    It 'pst-uninstall retire une installation depuis la copie installée' {
+        $other = Join-Path ([IO.Path]::GetTempPath()) ("pst-uninst-" + [Guid]::NewGuid().ToString('N'))
+        try {
+            $null = $null | & $Shell -NoProfile -File $Installer -InstallRoot $other -NoPath -Yes 2>&1
+            (Join-Path (Join-Path $other 'bin') 'pst-uninstall.cmd') | Should -Exist
+            $out = $null | & $Shell -NoProfile -File (Join-Path (Join-Path (Join-Path $other 'app') 'tools') 'pst-uninstall.ps1') -Yes 2>&1
+            $LASTEXITCODE | Should -Be 0 -Because (@($out) -join "`n")
+            # Sous Windows, la suppression est confiée à un processus détaché : on lui laisse le temps.
+            for ($i = 0; $i -lt 40 -and (Test-Path (Join-Path $other 'app')); $i++) { Start-Sleep -Milliseconds 500 }
+            (Join-Path $other 'app') | Should -Not -Exist
+            (Join-Path $other 'bin') | Should -Not -Exist
+        }
+        finally { if (Test-Path $other) { Remove-Item $other -Recurse -Force -ErrorAction SilentlyContinue } }
+    }
+
+    It 'pst-uninstall ne fait rien depuis le dépôt' {
+        $r = Invoke-Tool 'pst-uninstall' @('-Yes')
+        $r.ExitCode | Should -Be 0
+        $r.Output | Should -Match 'rien n.est install'
+        (Join-Path $Tools 'pst.ps1') | Should -Exist
     }
 
     It 'désinstalle proprement' {

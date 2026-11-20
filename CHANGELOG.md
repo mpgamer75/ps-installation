@@ -1,5 +1,12 @@
 # Journal des modifications
 
+## 2.2.0
+
+- **pst-uninstall** : commande dédiée pour désinstaller ps-tools (commandes, PATH, intégration au shell,
+  rappels planifiés). `-Yes` pour ne rien demander, `-Purge` pour supprimer aussi les données personnelles.
+  `pst uninstall` passe par le même chemin et accepte `-Purge`.
+- La désinstallation ne laisse plus de dossier vide derrière elle.
+
 ## 2.1.0
 
 ### Intégration au shell (`pst shell on`)

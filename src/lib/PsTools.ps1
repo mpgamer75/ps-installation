@@ -5,7 +5,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:Pst = @{
-    Version   = '2.1.0'
+    Version   = '2.2.0'
     Repo      = 'mpgamer75/ps-installation'
     Esc       = [string][char]27
     # PSTOOLS_TEST_WINDOWS : réservé aux tests, pour exercer le rendu hors Windows avec des données simulées.

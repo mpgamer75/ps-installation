@@ -1,7 +1,6 @@
 ﻿# ─────────────────────────────────────────────────────────────────────────────
 #  ps-tools — moteur d'installation / désinstallation
-#  Appelé par install.ps1 (amorce) ou par « pst update / pst uninstall ».
-#  Suppose que la bibliothèque PsTools.ps1 est déjà chargée.
+#  Appelé par install.ps1 (amorce) ou par « pst-uninstall ».
 # ─────────────────────────────────────────────────────────────────────────────
 [CmdletBinding()]
 param(
@@ -19,6 +18,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Lancé comme fichier (pst-uninstall), ce script a sa propre portée : il charge alors la
+# bibliothèque lui-même. Lancé par l'amorce install.ps1, elle est déjà en place.
+if (-not $script:Pst) { . (Join-Path (Join-Path $PSScriptRoot 'lib') 'PsTools.ps1') }
 $g = $script:Pst.Glyph
 $isWindowsHost = $script:Pst.IsWindows
 $isAdmin = Test-PstAdmin
@@ -176,9 +178,10 @@ function Remove-Installation {
         Set-HomeVariable -Value $null -Target $Target
     }
     if ($Deferred -and $isWindowsHost) {
-        # Lancé par « pst uninstall » : les fichiers en cours d'exécution sont
+        # Lancé par « pst-uninstall » : les fichiers en cours d'exécution sont
         # supprimés par un processus détaché, une fois ce terminal rendu.
-        $cmd = '/c ping -n 3 127.0.0.1 >nul & rd /s /q "{0}" & rd /s /q "{1}"' -f $bin, $app
+        # Le dernier « rd » (sans /s) ne retire le dossier racine que s'il est vide.
+        $cmd = '/c ping -n 3 127.0.0.1 >nul & rd /s /q "{0}" & rd /s /q "{1}" & rd "{2}"' -f $bin, $app, $Root
         Start-Process -FilePath 'cmd.exe' -ArgumentList $cmd -WindowStyle Hidden | Out-Null
     }
     else {
@@ -248,7 +251,7 @@ function Invoke-Uninstall {
     elseif ($isWindowsHost) { $dataDir = Join-Path (Get-ScopeRoot 'CurrentUser') 'data' }
     if ($dataDir -and (Test-Path -LiteralPath $dataDir)) {
         $purge = [bool]$PurgeData
-        if (-not $purge -and -not $Yes) { $purge = Read-PstConfirm 'Supprimer aussi vos données (rappels enregistrés) ?' }
+        if (-not $purge -and -not $Yes) { $purge = Read-PstConfirm 'Supprimer aussi vos données (rappels, favoris, réglages de l''assistant) ?' }
         if ($purge) {
             Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
             $parent = Split-Path -Parent $dataDir
@@ -445,12 +448,13 @@ function Invoke-Install {
 
     # 6. Bilan
     Write-Host ''
-    $names = @($selected | Where-Object { $_.name -ne 'pst' } | ForEach-Object { $_.name })
+    $names = @($selected | Where-Object { $_.name -notlike 'pst*' } | ForEach-Object { $_.name })
     $half = [int][Math]::Ceiling($names.Count / 2)
     $summary = @(((Paint 'Commandes  ' 'Accent' -Bold) + (@($names | Select-Object -First $half) -join '  ')))
     if ($names.Count -gt $half) { $summary += ('           ' + (@($names | Select-Object -Skip $half) -join '  ')) }
     $summary += @(
-        ((Paint 'Gestion    ' 'Accent' -Bold) + 'pst' + (Paint '  (menu, diagnostic, mise à jour, désinstallation)' 'Dim')),
+        ((Paint 'Gestion    ' 'Accent' -Bold) + 'pst' + (Paint '  (menu, diagnostic, mise à jour)' 'Dim')),
+        ((Paint 'Retrait    ' 'Accent' -Bold) + 'pst-uninstall'),
         ((Paint 'Aide       ' 'Accent' -Bold) + '<commande> -Help' + (Paint '  ·  pst keys pour les raccourcis' 'Dim'))
     )
     if (-not $shellActive -and -not $InstallRoot) { $summary += ((Paint 'Shell      ' 'Accent' -Bold) + 'pst shell on' + (Paint '  (invite, raccourcis, alias)' 'Dim')) }

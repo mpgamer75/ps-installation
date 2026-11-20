@@ -110,6 +110,14 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $ErrorActionPreference = 'Stop'
+          # Commande dediee, lancee comme le ferait l'utilisateur ; la suppression des fichiers est differee.
+          $env:PATH = "$env:PATH;$(Join-Path $env:LOCALAPPDATA 'ps-tools\bin')"
+          cmd /c pst-uninstall -Yes -Purge
+          if ($LASTEXITCODE -ne 0) { throw "pst-uninstall : code de sortie $LASTEXITCODE" }
+          $root = Join-Path $env:LOCALAPPDATA 'ps-tools'
+          for ($i = 0; $i -lt 40 -and (Test-Path $root); $i++) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path $root) { throw "dossier encore present : $(Get-ChildItem $root -Recurse -Name | Out-String)" }
+          # L'amorce web doit ensuite constater qu'il ne reste rien.
           ./uninstall.ps1 -Yes -PurgeData
           if (Test-Path (Join-Path $env:LOCALAPPDATA 'ps-tools\bin')) { throw 'dossier bin encore présent' }
           $userPath = (Get-Item 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
