@@ -23,6 +23,9 @@ jobs:
           $issues += @(Invoke-ScriptAnalyzer -Path ./uninstall.ps1 -Settings ./PSScriptAnalyzerSettings.psd1)
           $issues | Format-Table ScriptName, Line, RuleName, Message -AutoSize -Wrap
           if ($issues.Count -gt 0) { throw "$($issues.Count) probleme(s)" }
+      - name: Traductions anglaises
+        shell: pwsh
+        run: ./build/Test-Translations.ps1 -Strict -Quiet
 
   test:
     name: Tests (${{ matrix.name }})
@@ -56,6 +59,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $ErrorActionPreference = 'Stop'
+          $env:PSTOOLS_LANG = 'fr'   # les machines de la CI sont en anglais ; les vérifications portent sur le français
           ./install.ps1 -Scope CurrentUser -Yes
           $bin = Join-Path $env:LOCALAPPDATA 'ps-tools\bin'
           if (-not (Test-Path (Join-Path $bin 'monitor.cmd'))) { throw 'lanceur absent' }
@@ -94,6 +98,17 @@ jobs:
           Assert-Run 'logtail'        { cmd /c logtail "$env:TEMP\pst-ci.log" -NoFollow } 'ERROR boum'
           Assert-Run 'ask (sans clef)' { cmd /c ask bonjour }               'ask -Setup' -AnyExitCode
           Assert-Run 'pst keys'       { cmd /c pst keys }                   'Alt\+A'
+          $env:PSTOOLS_LANG = 'en'
+          Assert-Run 'pst (anglais)'  { cmd /c pst }                        'EVERYDAY'
+          Assert-Run 'math (anglais)' { cmd /c math "2 * (3 + 4)" }         '14'
+          Assert-Run 'todo (anglais)' { cmd /c todo add "Buy bread" -Due tomorrow } 'Buy bread'
+          $env:PSTOOLS_LANG = 'fr'
+          Assert-Run 'tidy (simulation)' { cmd /c tidy $env:TEMP -DryRun }  '.'
+          Assert-Run 'dupes'          { cmd /c dupes . -Min 1KB }           '.'
+          Assert-Run 'paths'          { cmd /c paths }                      'PATH'
+          Assert-Run 'gitignore'      { cmd /c gitignore -Help }            'gitignore'
+          Assert-Run 'cheat'          { cmd /c cheat -Help }                'cheat'
+          Assert-Run 'timer'          { cmd /c timer 2s }                   '.'
           Assert-Run 'pst usage'      { cmd /c pst usage }                  'consommation'
           Assert-Run 'ask -Status'    { cmd /c ask -Status }                'Fournisseur'
           # Integration au shell : le profil modifie doit se charger dans un shell neuf.

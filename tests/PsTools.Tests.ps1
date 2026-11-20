@@ -7,6 +7,7 @@ BeforeAll {
     $script:Shell = (Get-Process -Id $PID).Path
     $script:Manifest = Get-Content (Join-Path $Root 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $env:NO_COLOR = '1'
+    $env:PSTOOLS_LANG = 'fr'   # les assertions portent sur les textes français ; l'anglais a ses propres tests
     $env:PSTOOLS_DATA = Join-Path ([IO.Path]::GetTempPath()) ("pst-data-" + [Guid]::NewGuid().ToString('N'))
     $env:PSTOOLS_TASK_PREFIX = 'PsToolsTest_Reminder_'   # ne touche jamais aux vrais rappels du poste
 
@@ -87,6 +88,12 @@ Describe 'Bibliothèque' {
         (Format-PstSparkline (1..50) -Width 8).Length | Should -Be 8
     }
 
+    It 'remplit les valeurs, y compris zéro' {
+        L '{0} port(s)' 0 | Should -Be '0 port(s)'
+        L '{0} / {1}' 0 0 | Should -Be '0 / 0'
+        L 'texte sans valeur' | Should -Be 'texte sans valeur'
+    }
+
     It 'aligne et tronque le texte' {
         Format-PstPad 'ab' 5 | Should -Be 'ab   '
         Format-PstPad 'ab' 5 -Right | Should -Be '   ab'
@@ -123,10 +130,66 @@ Describe 'Bibliothèque' {
 }
 
 Describe 'Aide des outils' {
-    It '<_> -Help répond sans erreur' -ForEach @('pst', 'pst-uninstall', 'ask', 'monitor', 'sysinfo', 'clean', 'watch', 'logtail', 'events', 'gst', 'loc', 'serve', 'dev', 'dsize', 'ping-mon', 'netinfo', 'ports', 'remind') {
+    BeforeDiscovery {
+        $script:AllTools = @((Get-Content (Join-Path (Split-Path -Parent $PSScriptRoot) 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).tools | ForEach-Object { $_.name })
+    }
+    It '<_> -Help répond sans erreur' -ForEach $AllTools {
         $r = Invoke-Tool $_ @('-Help')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'UTILISATION'
+    }
+    It '<_> -Help existe en anglais' -ForEach $AllTools {
+        $env:PSTOOLS_LANG = 'en'
+        try { $r = Invoke-Tool $_ @('-Help') } finally { $env:PSTOOLS_LANG = 'fr' }
+        $r.ExitCode | Should -Be 0
+        $r.Output | Should -Match 'USAGE'
+        $r.Output | Should -Not -Match 'UTILISATION|EXEMPLES'
+    }
+}
+
+Describe 'Mode anglais' {
+    BeforeAll { . (Join-Path (Join-Path (Join-Path $Root 'src') 'lib') 'PsTools.ps1') }
+
+    It 'chaque texte traduit a sa traduction, avec les mêmes valeurs {0}' {
+        $out = & $Shell -NoProfile -File (Join-Path (Join-Path $Root 'build') 'Test-Translations.ps1') -Strict -Quiet 2>&1
+        $LASTEXITCODE | Should -Be 0 -Because (@($out) -join "`n")
+    }
+
+    It 'les dictionnaires ne contiennent que des données' {
+        Get-ChildItem (Join-Path (Join-Path (Join-Path $Root 'src') 'i18n') 'en') -Filter '*.psd1' | ForEach-Object {
+            $block = [scriptblock]::Create([IO.File]::ReadAllText($_.FullName).TrimStart([char]0xFEFF))
+            { $block.CheckRestrictedLanguage([string[]]@(), [string[]]@(), $false) } | Should -Not -Throw -Because $_.Name
+        }
+    }
+
+    It 'choisit la langue : variable, réglage, puis langue de Windows' {
+        $saved = $env:PSTOOLS_LANG
+        try {
+            $env:PSTOOLS_LANG = 'en'; Get-PstLanguage | Should -Be 'en'
+            $env:PSTOOLS_LANG = 'de'; Get-PstLanguage | Should -Be 'en'
+            $env:PSTOOLS_LANG = 'fr'; Get-PstLanguage | Should -Be 'fr'
+        }
+        finally { $env:PSTOOLS_LANG = $saved }
+    }
+
+    It 'traduit, garde le français en repli, et adapte unités et durées' {
+        Set-PstLanguage 'en'
+        try {
+            L 'Appuyez sur une touche pour continuer...' | Should -Be 'Press any key to continue...'
+            L 'Texte sans traduction {0}' 3 | Should -Be 'Texte sans traduction 3'
+            Format-PstSize (5 * 1GB) | Should -Match 'GB$'
+            Format-PstDuration (New-Object TimeSpan 2, 3, 4, 0) | Should -Be '2d 3h 04m'
+        }
+        finally { Set-PstLanguage 'fr' }
+        Format-PstSize (5 * 1GB) | Should -Match 'Go$'
+    }
+
+    It 'pst parle anglais quand on le lui demande' {
+        $env:PSTOOLS_LANG = 'en'
+        try { $r = Invoke-Tool 'pst' } finally { $env:PSTOOLS_LANG = 'fr' }
+        $r.Output | Should -Match 'The Windows terminal toolkit'
+        $r.Output | Should -Match 'EVERYDAY'
+        $r.Output | Should -Not -Match 'AU QUOTIDIEN'
     }
 }
 
@@ -145,6 +208,8 @@ Describe 'Installation' {
             (Join-Path (Join-Path (Join-Path $Dest 'app') 'tools') "$($tool.name).ps1") | Should -Exist
         }
         foreach ($lib in 'PsTools.ps1', 'PsTools.AI.ps1', 'PsTools.Wizard.ps1') { (Join-Path (Join-Path (Join-Path $Dest 'app') 'lib') $lib) | Should -Exist }
+        (Join-Path $Dest 'app/i18n/en/PsTools.psd1') | Should -Exist
+        (Join-Path $Dest 'app/i18n/en/ask.psd1') | Should -Exist
         $info = Get-Content (Join-Path (Join-Path $Dest 'app') 'install.json') -Raw | ConvertFrom-Json
         $info.Version | Should -Be $Manifest.version
     }
@@ -155,6 +220,12 @@ Describe 'Installation' {
         $shim = Get-Content (Join-Path (Join-Path $Dest 'bin') 'monitor.cmd') -Raw
         $shim | Should -Match '%~dp0\.\.\\app\\tools\\monitor\.ps1'
         $shim | Should -Match '-ExecutionPolicy Bypass'
+    }
+
+    It 'la copie installée parle anglais' {
+        $env:PSTOOLS_LANG = 'en'
+        try { $out = $null | & $Shell -NoProfile -File (Join-Path $Dest 'app/tools/pst-uninstall.ps1') -Help 2>&1 } finally { $env:PSTOOLS_LANG = 'fr' }
+        (@($out) -join "`n") | Should -Match 'USAGE'
     }
 
     It 'la copie installée fonctionne' {
@@ -594,7 +665,7 @@ Describe 'Configuration et thèmes' {
 
     It 'fournit une configuration complète par défaut' {
         $c = Get-PstConfig
-        $c.theme | Should -Be 'nuit'
+        $c.theme | Should -Be 'cyan'
         $c.ai.effort | Should -Be 'low'
         $c.shell.prompt | Should -BeTrue
     }
@@ -628,7 +699,7 @@ Describe 'Configuration et thèmes' {
             foreach ($role in 'Accent', 'Accent2', 'Ok', 'Warn', 'Err', 'Dim', 'Title') { @($script:PstThemes[$name][$role]).Count | Should -Be 3 -Because "$name.$role" }
         }
         Set-PstTheme 'inexistant'
-        $script:Pst.ThemeName | Should -Be 'nuit'
+        $script:Pst.ThemeName | Should -Be 'cyan'
     }
 
     It 'coupe un texte à la largeur demandée' {

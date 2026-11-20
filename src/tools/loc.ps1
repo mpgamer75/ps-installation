@@ -15,16 +15,17 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'loc'
 
 if ($Help -or (Test-PstHelpArg (@($Path) + @($Rest)))) {
-    Show-PstHelp -Name 'loc' -Synopsis 'Mesure un projet : langages, lignes de code, notes en suspens.' `
-        -Usage @('loc [dossier] [-Todo] [-Json]') `
-        -Options @(@('dossier', 'Projet à analyser (défaut : dossier courant)'), @('-Todo', 'Liste les TODO, FIXME, HACK et XXX avec leur emplacement'), @('-Json', 'Sortie JSON, pour les scripts')) `
-        -Examples @('loc', 'loc D:\Projets\api', 'loc -Todo')
+    Show-PstHelp -Name 'loc' -Synopsis (L 'Mesure un projet : langages, lignes de code, notes en suspens.') `
+        -Usage @(L 'loc [dossier] [-Todo] [-Json]') `
+        -Options @(@((L 'dossier'), (L 'Projet à analyser (défaut : dossier courant)')), @('-Todo', (L 'Liste les TODO, FIXME, HACK et XXX avec leur emplacement')), @('-Json', (L 'Sortie JSON, pour les scripts'))) `
+        -Examples @('loc', (L 'loc D:\Projets\api'), 'loc -Todo')
     exit 0
 }
 
-if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err "Dossier introuvable : $Path"; exit 1 }
+if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-PstStatus err (L 'Dossier introuvable : {0}' $Path); exit 1 }
 $root = (Resolve-Path -LiteralPath $Path).ProviderPath
 
 $languages = @{
@@ -94,32 +95,34 @@ $g = $script:Pst.Glyph
 $width = Get-PstWidth -Max 100
 Show-PstHeader -Tool 'loc' -Subtitle (Split-Path -Leaf $root)
 
-if ($rows.Count -eq 0) { Write-PstStatus info 'Aucun fichier de code reconnu dans ce dossier.'; Write-Host ''; exit 0 }
+if ($rows.Count -eq 0) { Write-PstStatus info (L 'Aucun fichier de code reconnu dans ce dossier.'); Write-Host ''; exit 0 }
 
 if ($Todo) {
-    if ($notes.Count -eq 0) { Write-PstStatus ok 'Aucune note TODO / FIXME en suspens.'; Write-Host ''; exit 0 }
+    if ($notes.Count -eq 0) { Write-PstStatus ok (L 'Aucune note TODO / FIXME en suspens.'); Write-Host ''; exit 0 }
     foreach ($n in $notes) {
         $color = 'Warn'
         if ($n.Tag -eq 'FIXME' -or $n.Tag -eq 'XXX') { $color = 'Err' }
         Write-Host ('  ' + (Paint (Format-PstPad $n.Tag 6) $color -Bold) + (Paint (Limit-PstText "$($n.File):$($n.Line)" 38) 'Accent') + '  ' + (Limit-PstText $n.Text ([Math]::Max(10, $width - 52))))
     }
     Write-Host ''
-    Write-Host (Paint "  $($notes.Count) note(s)" 'Dim')
+    Write-Host (Paint ('  ' + (L '{0} note(s)' $notes.Count)) 'Dim')
     Write-Host ''
     exit 0
 }
 
-Write-Host ('  ' + (Paint ('{0:N0} lignes de code' -f $sumCode) 'Title' -Bold) + (Paint " $($g.Dot) $sumFiles fichier(s) $($g.Dot) $($rows.Count) langage(s) $($g.Dot) $($notes.Count) note(s) TODO/FIXME" 'Dim'))
+Write-Host ('  ' + (Paint (L '{0:N0} lignes de code' $sumCode) 'Title' -Bold) + (Paint (' ' + (L '{0} {1} fichier(s) {0} {2} langage(s) {0} {3} note(s) TODO/FIXME' $g.Dot $sumFiles $rows.Count $notes.Count)) 'Dim'))
 Write-Host ''
 $table = @()
 foreach ($r in $rows) {
     $pct = 0
     if ($sumCode -gt 0) { $pct = $r.Code / $sumCode * 100 }
-    $table += , @((Paint $r.Language 'Accent'), [string]$r.Files, ('{0:N0}' -f $r.Code), ('{0:N0}' -f $r.Comment), ('{0:N0}' -f $r.Blank), (Format-PstBar $pct 20 -Color 'Accent2'), ('{0,5:N1} %' -f $pct))
+    $label = $r.Language
+    if ($label -eq 'C / C++ (en-têtes)') { $label = L 'C / C++ (en-têtes)' }
+    $table += , @((Paint $label 'Accent'), [string]$r.Files, ('{0:N0}' -f $r.Code), ('{0:N0}' -f $r.Comment), ('{0:N0}' -f $r.Blank), (Format-PstBar $pct 20 -Color 'Accent2'), ('{0,5:N1} %' -f $pct))
 }
 Format-PstTable -Columns @(
-    @{ Name = 'Langage'; Width = 20 }, @{ Name = 'Fichiers'; Width = 8; Right = $true }, @{ Name = 'Code'; Width = 9; Right = $true },
-    @{ Name = 'Comment.'; Width = 9; Right = $true }, @{ Name = 'Vides'; Width = 8; Right = $true }, @{ Name = ''; Width = 20 }, @{ Name = 'Part'; Width = 7; Right = $true }
+    @{ Name = (L 'Langage'); Width = 20 }, @{ Name = (L 'Fichiers'); Width = 8; Right = $true }, @{ Name = 'Code'; Width = 9; Right = $true },
+    @{ Name = (L 'Comment.'); Width = 9; Right = $true }, @{ Name = (L 'Vides'); Width = 8; Right = $true }, @{ Name = ''; Width = 20 }, @{ Name = (L 'Part'); Width = 7; Right = $true }
 ) -Rows $table | ForEach-Object { Write-Host "  $_" }
 Write-Host ''
-if ($notes.Count) { Write-Host (Paint "  loc -Todo pour lister les $($notes.Count) note(s) en suspens" 'Dim'); Write-Host '' }
+if ($notes.Count) { Write-Host (Paint ('  ' + (L 'loc -Todo pour lister les {0} note(s) en suspens' $notes.Count)) 'Dim'); Write-Host '' }

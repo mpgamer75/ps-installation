@@ -16,18 +16,19 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'monitor'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'monitor' -Synopsis 'Tableau de bord système en temps réel.' `
+    Show-PstHelp -Name 'monitor' -Synopsis (L 'Tableau de bord système en temps réel.') `
         -Usage @('monitor [-Interval <s>] [-Top <n>] [-Sort cpu|mem] [-Once]') `
         -Options @(
-            @('-Interval <s>', 'Délai de rafraîchissement en secondes (défaut : 2)'),
-            @('-Top <n>', 'Nombre de processus affichés (défaut : 8)'),
-            @('-Sort cpu|mem', 'Tri initial des processus'),
-            @('-Once', 'Affiche un instantané puis quitte (pratique pour les scripts)')
+            @('-Interval <s>', (L 'Délai de rafraîchissement en secondes (défaut : 2)')),
+            @('-Top <n>', (L 'Nombre de processus affichés (défaut : 8)')),
+            @('-Sort cpu|mem', (L 'Tri initial des processus')),
+            @('-Once', (L 'Affiche un instantané puis quitte (pratique pour les scripts)'))
         ) `
         -Examples @('monitor', 'monitor -Interval 1 -Top 12', 'monitor -Once') `
-        -Notes @('Touches : Q quitter · C tri CPU · M tri mémoire · P pause · +/- vitesse')
+        -Notes @((L 'Touches : Q quitter · C tri CPU · M tri mémoire · P pause · +/- vitesse'))
     exit 0
 }
 
@@ -54,7 +55,7 @@ function Add-Sample {
 }
 
 function Get-StaticInfo {
-    $info = @{ Os = 'Windows'; Cpu = 'Processeur'; Boot = $null; Host = $env:COMPUTERNAME }
+    $info = @{ Os = 'Windows'; Cpu = (L 'Processeur'); Boot = $null; Host = $env:COMPUTERNAME }
     try {
         $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
         $info.Os = "$($os.Caption) ($($os.Version))".Replace('Microsoft ', '')
@@ -162,7 +163,7 @@ function Get-Frame {
     $lines = @()
 
     $sub = "$($Info.Host)"
-    if ($Info.Boot) { $sub += " $($g.Dot) actif depuis $(Format-PstDuration ((Get-Date) - $Info.Boot))" }
+    if ($Info.Boot) { $sub += ' ' + $g.Dot + ' ' + (L 'actif depuis {0}' (Format-PstDuration ((Get-Date) - $Info.Boot))) }
     $lines += ' ' + (Get-PstHeaderLine -Tool 'monitor' -Subtitle $sub -Width ($width - 1))
     $lines += ' ' + (Paint (Limit-PstText "$($Info.Os) $($g.Dot) $($Info.Cpu)" ($width - 2)) 'Dim')
     $lines += ''
@@ -179,9 +180,9 @@ function Get-Frame {
             $idx = [int][Math]::Floor(([Math]::Min($c, 100) / 100) * ($g.Spark.Count - 1))
             $cores += Paint $g.Spark[$idx] (Get-PstLevelColor $c)
         }
-        $cpuLines += (Format-PstPad 'Cœurs' 8) + $cores + (Paint "  $($Snap.CpuCores.Count) threads" 'Dim')
+        $cpuLines += (Format-PstPad (L 'Cœurs') 8) + $cores + (Paint ('  ' + (L '{0} threads' $Snap.CpuCores.Count)) 'Dim')
     }
-    $lines += Format-PstBox -Title 'Processeur' -Lines $cpuLines -Width $width
+    $lines += Format-PstBox -Title (L 'Processeur') -Lines $cpuLines -Width $width
 
     # Mémoire + batterie
     $memPct = 0
@@ -193,30 +194,30 @@ function Get-Frame {
     if ($Snap.Battery) {
         $batColor = 'Ok'
         if ($Snap.Battery.Percent -lt 20) { $batColor = 'Err' } elseif ($Snap.Battery.Percent -lt 40) { $batColor = 'Warn' }
-        $batState = 'sur batterie'
-        if ($Snap.Battery.Charging) { $batState = 'sur secteur' }
-        $memLines += (Format-PstPad 'Batt.' 8) + (Format-PstBar $Snap.Battery.Percent $barW -Color $batColor) + ' ' +
+        $batState = L 'sur batterie'
+        if ($Snap.Battery.Charging) { $batState = L 'sur secteur' }
+        $memLines += (Format-PstPad (L 'Batt.') 8) + (Format-PstBar $Snap.Battery.Percent $barW -Color $batColor) + ' ' +
             (Paint ('{0,5:N0} %' -f $Snap.Battery.Percent) $batColor -Bold) + (Paint "  $batState" 'Dim')
     }
-    $lines += Format-PstBox -Title 'Mémoire' -Lines $memLines -Width $width
+    $lines += Format-PstBox -Title (L 'Mémoire') -Lines $memLines -Width $width
 
     # Disques
     $diskLines = @()
     foreach ($d in $Snap.Disks) {
         $pct = ($d.Total - $d.Free) / $d.Total * 100
         $diskLines += (Format-PstPad $d.Name 8) + (Format-PstBar $pct $barW) + ' ' + (Paint ('{0,5:N1} %' -f $pct) (Get-PstLevelColor $pct 80 92) -Bold) +
-            (Paint "  $(Format-PstSize $d.Free) libres sur $(Format-PstSize $d.Total)" 'Dim')
+            (Paint ('  ' + (L '{0} libres sur {1}' (Format-PstSize $d.Free) (Format-PstSize $d.Total))) 'Dim')
     }
-    if ($diskLines.Count -eq 0) { $diskLines = @(Paint 'Aucun disque fixe détecté' 'Dim') }
-    $lines += Format-PstBox -Title 'Disques' -Lines $diskLines -Width $width
+    if ($diskLines.Count -eq 0) { $diskLines = @(Paint (L 'Aucun disque fixe détecté') 'Dim') }
+    $lines += Format-PstBox -Title (L 'Disques') -Lines $diskLines -Width $width
 
     # Réseau
     $sparkW = [Math]::Max(10, $inner - 30)
     $netLines = @(
-        ((Paint "$($g.Down) Reçu  " 'Accent') + (Format-PstPad ("$(Format-PstSize $Snap.Rx)/s") 14 -Right) + '  ' + (Paint (Format-PstSparkline $state.RxHist.ToArray() -Width $sparkW) 'Accent')),
-        ((Paint "$($g.Up) Envoyé" 'Accent2') + (Format-PstPad ("$(Format-PstSize $Snap.Tx)/s") 14 -Right) + '  ' + (Paint (Format-PstSparkline $state.TxHist.ToArray() -Width $sparkW) 'Accent2'))
+        ((Paint ("$($g.Down) " + (Format-PstPad (L 'Reçu') 6)) 'Accent') + (Format-PstPad ("$(Format-PstSize $Snap.Rx)/s") 14 -Right) + '  ' + (Paint (Format-PstSparkline $state.RxHist.ToArray() -Width $sparkW) 'Accent')),
+        ((Paint ("$($g.Up) " + (Format-PstPad (L 'Envoyé') 6)) 'Accent2') + (Format-PstPad ("$(Format-PstSize $Snap.Tx)/s") 14 -Right) + '  ' + (Paint (Format-PstSparkline $state.TxHist.ToArray() -Width $sparkW) 'Accent2'))
     )
-    $lines += Format-PstBox -Title 'Réseau' -Lines $netLines -Width $width
+    $lines += Format-PstBox -Title (L 'Réseau') -Lines $netLines -Width $width
 
     # Processus
     if ($state.Sort -eq 'mem') { $sorted = @($Snap.Procs | Sort-Object { $_.Mem } -Descending | Select-Object -First $Top) }
@@ -232,17 +233,17 @@ function Get-Frame {
             [string]$p.Threads
         )
     }
-    $sortLabel = 'CPU'
-    if ($state.Sort -eq 'mem') { $sortLabel = 'mémoire' }
+    $procTitle = L 'Processus ({0}) {1} tri CPU' $Snap.ProcCount $g.Dot
+    if ($state.Sort -eq 'mem') { $procTitle = L 'Processus ({0}) {1} tri mémoire' $Snap.ProcCount $g.Dot }
     $procLines = Format-PstTable -Columns @(
-        @{ Name = 'PID'; Width = 7; Right = $true }, @{ Name = 'Processus'; Width = $nameW },
-        @{ Name = 'CPU'; Width = 8; Right = $true }, @{ Name = 'Mémoire'; Width = 10; Right = $true },
+        @{ Name = 'PID'; Width = 7; Right = $true }, @{ Name = (L 'Processus'); Width = $nameW },
+        @{ Name = 'CPU'; Width = 8; Right = $true }, @{ Name = (L 'Mémoire'); Width = 10; Right = $true },
         @{ Name = 'Threads'; Width = 7; Right = $true }
     ) -Rows $rows
-    $lines += Format-PstBox -Title "Processus ($($Snap.ProcCount)) $($g.Dot) tri $sortLabel" -Lines $procLines -Width $width
+    $lines += Format-PstBox -Title $procTitle -Lines $procLines -Width $width
 
-    $status = "Q quitter $($g.Dot) C tri CPU $($g.Dot) M tri mémoire $($g.Dot) P pause $($g.Dot) +/- intervalle ($($state.Interval)s)"
-    if ($state.Paused) { $status = (Paint 'EN PAUSE ' 'Warn' -Bold) + (Paint "$($g.Dot) P reprendre $($g.Dot) Q quitter" 'Dim') }
+    $status = L 'Q quitter {0} C tri CPU {0} M tri mémoire {0} P pause {0} +/- intervalle ({1}s)' $g.Dot $state.Interval
+    if ($state.Paused) { $status = (Paint (L 'EN PAUSE ') 'Warn' -Bold) + (Paint (L '{0} P reprendre {0} Q quitter' $g.Dot) 'Dim') }
     else { $status = Paint $status 'Dim' }
     $lines += ' ' + $status + (Paint ("  $(Get-Date -Format 'HH:mm:ss')") 'Dim')
     return $lines

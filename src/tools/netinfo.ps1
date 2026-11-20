@@ -15,14 +15,15 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'netinfo'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'netinfo' -Synopsis 'Interfaces, adresses, DNS, Wi-Fi et connectivité Internet.' `
+    Show-PstHelp -Name 'netinfo' -Synopsis (L 'Interfaces, adresses, DNS, Wi-Fi et connectivité Internet.') `
         -Usage @('netinfo [-Offline] [-All] [-Json]') `
         -Options @(
-            @('-Offline', 'Aucune requête vers Internet (pas d''IP publique ni de test)'),
-            @('-All', 'Affiche aussi les interfaces déconnectées et virtuelles'),
-            @('-Json', 'Sortie JSON, pour les scripts')
+            @('-Offline', (L 'Aucune requête vers Internet (pas d''IP publique ni de test)')),
+            @('-All', (L 'Affiche aussi les interfaces déconnectées et virtuelles')),
+            @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
         -Examples @('netinfo', 'netinfo -Offline', 'netinfo -Json')
     exit 0
@@ -131,13 +132,13 @@ if ($internet) {
     $lines = @()
     if ($internet.Reachable) {
         $latency = ''
-        if ($null -ne $internet.LatencyMs) { $latency = "  $($g.Dot) $($internet.LatencyMs) ms vers 1.1.1.1" }
-        $lines += (Paint "$($g.Ok) Connecté à Internet" 'Ok' -Bold) + (Paint $latency 'Dim')
+        if ($null -ne $internet.LatencyMs) { $latency = '  ' + (L '{0} {1} ms vers 1.1.1.1' $g.Dot $internet.LatencyMs) }
+        $lines += (Paint ("$($g.Ok) " + (L 'Connecté à Internet')) 'Ok' -Bold) + (Paint $latency 'Dim')
     }
-    else { $lines += Paint "$($g.Err) Pas d'accès à Internet" 'Err' -Bold }
-    if ($internet.Dns) { $lines += Row 'DNS' 'résolution fonctionnelle' }
-    else { $lines += (Paint (Format-PstPad 'DNS' 12) 'Accent') + (Paint 'résolution en échec' 'Err') }
-    $lines += Row 'IP publique' $internet.PublicIP
+    else { $lines += Paint ("$($g.Err) " + (L 'Pas d''accès à Internet')) 'Err' -Bold }
+    if ($internet.Dns) { $lines += Row 'DNS' (L 'résolution fonctionnelle') }
+    else { $lines += (Paint (Format-PstPad 'DNS' 12) 'Accent') + (Paint (L 'résolution en échec') 'Err') }
+    $lines += Row (L 'IP publique') $internet.PublicIP
     $color = 'Ok'
     if (-not $internet.Reachable) { $color = 'Err' }
     Format-PstBox -Title 'Internet' -Lines @($lines | Where-Object { $_ }) -Width $width -Color $color | Write-PstLine
@@ -150,19 +151,19 @@ if ($wifi) {
         if ($wifi.Signal -lt 40) { $signalColor = 'Err' } elseif ($wifi.Signal -lt 65) { $signalColor = 'Warn' }
         $signalText = (Format-PstBar $wifi.Signal 16 -Color $signalColor) + " $($wifi.Signal) %"
     }
-    $lines = @((Row 'Réseau' $wifi.Ssid))
+    $lines = @((Row (L 'Réseau') $wifi.Ssid))
     if ($signalText) { $lines += (Paint (Format-PstPad 'Signal' 12) 'Accent') + $signalText }
     Format-PstBox -Title 'Wi-Fi' -Lines $lines -Width $width | Write-PstLine
 }
 
-if ($adapters.Count -eq 0) { Write-PstStatus warn 'Aucune interface réseau active.' }
+if ($adapters.Count -eq 0) { Write-PstStatus warn (L 'Aucune interface réseau active.') }
 foreach ($a in $adapters) {
-    $state = Paint 'connectée' 'Ok'
-    if (-not $a.Up) { $state = Paint 'déconnectée' 'Dim' }
+    $state = Paint (L 'connectée') 'Ok'
+    if (-not $a.Up) { $state = Paint (L 'déconnectée') 'Dim' }
     $lines = @(
-        ((Paint (Format-PstPad 'État' 12) 'Accent') + $state + (Paint "  $($a.Speed)" 'Dim')),
-        (Row 'Carte' $a.Description), (Row 'IPv4' $a.IPv4), (Row 'IPv6' $a.IPv6),
-        (Row 'Passerelle' $a.Gateway), (Row 'DNS' $a.Dns), (Row 'MAC' $a.Mac)
+        ((Paint (Format-PstPad (L 'État') 12) 'Accent') + $state + (Paint "  $($a.Speed)" 'Dim')),
+        (Row (L 'Carte') $a.Description), (Row 'IPv4' $a.IPv4), (Row 'IPv6' $a.IPv6),
+        (Row (L 'Passerelle') $a.Gateway), (Row 'DNS' $a.Dns), (Row 'MAC' $a.Mac)
     )
     Format-PstBox -Title $a.Name -Lines @($lines | Where-Object { $_ }) -Width $width | Write-PstLine
 }

@@ -18,19 +18,20 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'events'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'events' -Synopsis 'Que s''est-il passé sur cette machine ? Les événements Windows qui comptent.' `
-        -Usage @('events [-Hours <n>] [-Level error|warn|all] [-Log <journaux>] [-Top <n>]', 'events -Id <n>      détail du dernier événement portant cet identifiant') `
+    Show-PstHelp -Name 'events' -Synopsis (L 'Que s''est-il passé sur cette machine ? Les événements Windows qui comptent.') `
+        -Usage @((L 'events [-Hours <n>] [-Level error|warn|all] [-Log <journaux>] [-Top <n>]'), (L 'events -Id <n>      détail du dernier événement portant cet identifiant')) `
         -Options @(
-            @('-Hours <n>', 'Période analysée en heures (défaut : 24)'),
-            @('-Level', 'error : critiques et erreurs · warn : + avertissements (défaut) · all : tout'),
-            @('-Log <journaux>', 'Journaux lus (défaut : System,Application)'),
-            @('-Top <n>', 'Nombre de groupes affichés (défaut : 15)'),
-            @('-Id <n>', 'Affiche le message complet d''un événement'),
-            @('-Json', 'Sortie JSON, pour les scripts')
+            @('-Hours <n>', (L 'Période analysée en heures (défaut : 24)')),
+            @('-Level', (L 'error : critiques et erreurs · warn : + avertissements (défaut) · all : tout')),
+            @((L '-Log <journaux>'), (L 'Journaux lus (défaut : System,Application)')),
+            @('-Top <n>', (L 'Nombre de groupes affichés (défaut : 15)')),
+            @('-Id <n>', (L 'Affiche le message complet d''un événement')),
+            @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
-        -Examples @('events', 'events -Hours 72 -Level error', 'events -Id 7031', 'events -Json | ask "y a-t-il un problème sérieux ?"')
+        -Examples @('events', 'events -Hours 72 -Level error', 'events -Id 7031', (L 'events -Json | ask "y a-t-il un problème sérieux ?"'))
     exit 0
 }
 
@@ -57,15 +58,15 @@ foreach ($name in $Log) {
 
 function Get-FirstLine {
     param([string]$Message)
-    if (-not $Message) { return '(message indisponible)' }
+    if (-not $Message) { return (L '(message indisponible)') }
     return (@($Message -split "`r?`n" | Where-Object { $_.Trim() })[0]).Trim()
 }
 
 if ($Id -gt 0 -and -not $Json) {
-    Show-PstHeader -Tool 'events' -Subtitle "événement $Id"
+    Show-PstHeader -Tool 'events' -Subtitle (L 'événement {0}' $Id)
     $last = $found | Sort-Object TimeCreated -Descending | Select-Object -First 1
-    if (-not $last) { Write-PstStatus info "Aucun événement $Id sur les $Hours dernières heures."; Write-Host ''; exit 0 }
-    Write-PstStatus info "$($last.ProviderName) $($g.Dot) $($last.LogName) $($g.Dot) $($last.TimeCreated.ToString('dd/MM/yyyy HH:mm:ss')) $($g.Dot) $($found.Count) occurrence(s)"
+    if (-not $last) { Write-PstStatus info (L 'Aucun événement {0} sur les {1} dernières heures.' $Id $Hours); Write-Host ''; exit 0 }
+    Write-PstStatus info (L '{0} {1} {2} {1} {3} {1} {4} occurrence(s)' $last.ProviderName $g.Dot $last.LogName $last.TimeCreated.ToString((L 'dd/MM/yyyy HH:mm:ss'), (Get-PstCulture)) $found.Count)
     Write-Host ''
     foreach ($line in @("$($last.Message)" -split "`r?`n")) { Write-Host "    $line" }
     Write-Host ''
@@ -85,15 +86,15 @@ if ($Json) { ConvertTo-Json -InputObject @($groups) -Depth 3; exit 0 }
 
 $critical = @($found | Where-Object { $_.Level -le 2 }).Count
 $warnings = @($found | Where-Object { $_.Level -eq 3 }).Count
-Show-PstHeader -Tool 'events' -Subtitle "$Hours dernières heures $($g.Dot) $($Log -join ', ')"
+Show-PstHeader -Tool 'events' -Subtitle (L '{0} dernières heures {1} {2}' $Hours $g.Dot ($Log -join ', '))
 
 $summaryColor = 'Ok'
 if ($critical -gt 0) { $summaryColor = 'Err' } elseif ($warnings -gt 0) { $summaryColor = 'Warn' }
-Write-Host ('  ' + (Paint "$critical erreur(s)" $summaryColor -Bold) + (Paint " $($g.Dot) $warnings avertissement(s) $($g.Dot) $($found.Count) événement(s) au total" 'Dim'))
+Write-Host ('  ' + (Paint (L '{0} erreur(s)' $critical) $summaryColor -Bold) + (Paint (' ' + (L '{0} {1} avertissement(s) {0} {2} événement(s) au total' $g.Dot $warnings $found.Count)) 'Dim'))
 Write-Host ''
-foreach ($d in $denied) { Write-PstStatus warn "Journal « $d » illisible (droits administrateur requis, ou journal inexistant)." }
+foreach ($d in $denied) { Write-PstStatus warn (L 'Journal « {0} » illisible (droits administrateur requis, ou journal inexistant).' $d) }
 
-if ($groups.Count -eq 0) { Write-PstStatus ok 'Rien à signaler sur la période.'; Write-Host ''; exit 0 }
+if ($groups.Count -eq 0) { Write-PstStatus ok (L 'Rien à signaler sur la période.'); Write-Host ''; exit 0 }
 
 $width = Get-PstWidth -Max 120
 $messageW = [Math]::Max(20, $width - 62)
@@ -105,12 +106,12 @@ foreach ($x in $groups) {
         3 { $mark = Paint 'WARN' 'Warn' }
         default { $mark = Paint 'INFO' 'Dim' }
     }
-    $rows += , @($mark, (Paint "x$($x.Count)" 'Title'), [string]$x.Id, (Limit-PstText $x.Source 24), $x.Last.ToString('dd/MM HH:mm'), (Paint (Limit-PstText $x.Message $messageW) 'Dim'))
+    $rows += , @($mark, (Paint "x$($x.Count)" 'Title'), [string]$x.Id, (Limit-PstText $x.Source 24), $x.Last.ToString((L 'dd/MM HH:mm'), (Get-PstCulture)), (Paint (Limit-PstText $x.Message $messageW) 'Dim'))
 }
 Format-PstTable -Columns @(
-    @{ Name = 'Niv.'; Width = 4 }, @{ Name = 'Nb'; Width = 5; Right = $true }, @{ Name = 'ID'; Width = 6; Right = $true },
-    @{ Name = 'Source'; Width = 24 }, @{ Name = 'Dernier'; Width = 11 }, @{ Name = 'Message'; Width = $messageW }
+    @{ Name = (L 'Niv.'); Width = 4 }, @{ Name = (L 'Nb'); Width = 5; Right = $true }, @{ Name = 'ID'; Width = 6; Right = $true },
+    @{ Name = 'Source'; Width = 24 }, @{ Name = (L 'Dernier'); Width = 11 }, @{ Name = 'Message'; Width = $messageW }
 ) -Rows $rows | ForEach-Object { Write-Host "  $_" }
 Write-Host ''
-Write-Host (Paint "  events -Id <ID> pour le message complet $($g.Dot) events -Json | ask `"que faut-il corriger ?`"" 'Dim')
+Write-Host (Paint ('  ' + (L 'events -Id <ID> pour le message complet {0} events -Json | ask "que faut-il corriger ?"' $g.Dot)) 'Dim')
 Write-Host ''

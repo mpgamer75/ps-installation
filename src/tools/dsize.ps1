@@ -16,22 +16,23 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'dsize'
 
 if ($Help -or (Test-PstHelpArg (@($Path) + @($Rest)))) {
-    Show-PstHelp -Name 'dsize' -Synopsis 'Classe le contenu d''un dossier par taille.' `
-        -Usage @('dsize [dossier] [-Top <n>] [-Files] [-Json]') `
+    Show-PstHelp -Name 'dsize' -Synopsis (L 'Classe le contenu d''un dossier par taille.') `
+        -Usage @(L 'dsize [dossier] [-Top <n>] [-Files] [-Json]') `
         -Options @(
-            @('dossier', 'Dossier à analyser (défaut : dossier courant)'),
-            @('-Top <n>', 'Nombre de lignes affichées (défaut : 15)'),
-            @('-Files', 'Liste les plus gros fichiers, tous sous-dossiers confondus'),
-            @('-Json', 'Sortie JSON, pour les scripts')
+            @((L 'dossier'), (L 'Dossier à analyser (défaut : dossier courant)')),
+            @('-Top <n>', (L 'Nombre de lignes affichées (défaut : 15)')),
+            @('-Files', (L 'Liste les plus gros fichiers, tous sous-dossiers confondus')),
+            @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
-        -Examples @('dsize', 'dsize C:\Users\moi -Top 25', 'dsize D:\Projets -Files')
+        -Examples @('dsize', (L 'dsize C:\Users\moi -Top 25'), (L 'dsize D:\Projets -Files'))
     exit 0
 }
 
 if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-    Write-PstStatus err "Dossier introuvable : $Path"
+    Write-PstStatus err (L 'Dossier introuvable : {0}' $Path)
     exit 1
 }
 $root = (Resolve-Path -LiteralPath $Path).ProviderPath
@@ -92,13 +93,13 @@ try {
     }
     foreach ($d in $rootInfo.GetDirectories()) {
         if ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
-        if ($interactive) { Write-Host ("  $(Paint $script:Pst.Glyph.Pointer 'Accent') Analyse : $(Limit-PstText $d.Name 50)$($script:Pst.Esc)[K`r") -NoNewline }
+        if ($interactive) { Write-Host ("  $(Paint $script:Pst.Glyph.Pointer 'Accent') " + (L 'Analyse : {0}' (Limit-PstText $d.Name 50)) + "$($script:Pst.Esc)[K`r") -NoNewline }
         $m = Measure-Tree $d.FullName
         [void]$items.Add([pscustomobject]@{ Name = $d.Name; Size = $m.Size; Count = $m.Count; IsDir = $true })
     }
 }
 catch {
-    Write-PstStatus err "Lecture impossible : $($_.Exception.Message)"
+    Write-PstStatus err (L 'Lecture impossible : {0}' $_.Exception.Message)
     exit 1
 }
 if ($interactive) { Write-Host "$($script:Pst.Esc)[K" -NoNewline }
@@ -117,13 +118,13 @@ if ($Json) {
 
 $g = $script:Pst.Glyph
 $width = Get-PstWidth -Max 100
-$mode = 'contenu'
-if ($Files) { $mode = 'plus gros fichiers' }
+$mode = L 'contenu'
+if ($Files) { $mode = L 'plus gros fichiers' }
 Show-PstHeader -Tool 'dsize' -Subtitle $mode
-Write-Host ('  ' + (Paint (Limit-PstText $root ($width - 30)) 'Title' -Bold) + (Paint "  $($g.Dot) $(Format-PstSize $total) $($g.Dot) $($stats.Files) fichier(s)" 'Dim'))
+Write-Host ('  ' + (Paint (Limit-PstText $root ($width - 30)) 'Title' -Bold) + (Paint ('  ' + (L '{0} {1} {0} {2} fichier(s)' $g.Dot (Format-PstSize $total) $stats.Files)) 'Dim'))
 Write-Host ''
 
-if ($ranked.Count -eq 0) { Write-PstStatus info 'Dossier vide.'; Write-Host ''; exit 0 }
+if ($ranked.Count -eq 0) { Write-PstStatus info (L 'Dossier vide.'); Write-Host ''; exit 0 }
 
 $nameW = [Math]::Max(20, $width - 50)
 $rows = @()
@@ -137,15 +138,14 @@ foreach ($r in $ranked) {
     $rows += , @((Format-PstSize $r.Size), (Format-PstBar $pct 18 -Color 'Accent2'), ('{0,5:N1} %' -f $pct), $name)
 }
 Format-PstTable -Columns @(
-    @{ Name = 'Taille'; Width = 10; Right = $true }, @{ Name = ''; Width = 18 }, @{ Name = 'Part'; Width = 7; Right = $true }, @{ Name = 'Nom'; Width = $nameW }
+    @{ Name = (L 'Taille'); Width = 10; Right = $true }, @{ Name = ''; Width = 18 }, @{ Name = (L 'Part'); Width = 7; Right = $true }, @{ Name = (L 'Nom'); Width = $nameW }
 ) -Rows $rows | ForEach-Object { Write-Host "  $_" }
 
 $hidden = $items.Count - $ranked.Count
 Write-Host ''
-if (-not $Files -and $hidden -gt 0) { Write-Host (Paint "  ... et $hidden autre(s) élément(s) plus petits (-Top pour en voir davantage)" 'Dim') }
+if (-not $Files -and $hidden -gt 0) { Write-Host (Paint ('  ' + (L '... et {0} autre(s) élément(s) plus petits (-Top pour en voir davantage)' $hidden)) 'Dim') }
 if ($stats.Denied -gt 0) {
-    $hint = ''
-    if (-not (Test-PstAdmin)) { $hint = ' (un terminal administrateur en lira davantage)' }
-    Write-PstStatus warn "$($stats.Denied) dossier(s) inaccessible(s) non comptabilisé(s)$hint"
+    if (Test-PstAdmin) { Write-PstStatus warn (L '{0} dossier(s) inaccessible(s) non comptabilisé(s)' $stats.Denied) }
+    else { Write-PstStatus warn (L '{0} dossier(s) inaccessible(s) non comptabilisé(s) (un terminal administrateur en lira davantage)' $stats.Denied) }
 }
 Write-Host ''

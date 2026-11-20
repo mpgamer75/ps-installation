@@ -14,17 +14,18 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'watch'
 
 if ($Help -or -not $Command -or (Test-PstHelpArg $Command)) {
-    Show-PstHelp -Name 'watch' -Synopsis 'Observe la sortie d''une commande dans le temps.' `
-        -Usage @('watch [-Interval <s>] [-Count <n>] [-NoDiff] <commande>') `
+    Show-PstHelp -Name 'watch' -Synopsis (L 'Observe la sortie d''une commande dans le temps.') `
+        -Usage @(L 'watch [-Interval <s>] [-Count <n>] [-NoDiff] <commande>') `
         -Options @(
-            @('-Interval <s>', 'Délai entre deux exécutions (défaut : 2)'),
-            @('-Count <n>', 'Nombre d''exécutions (défaut : 0 = jusqu''à Q)'),
-            @('-NoDiff', 'Ne surligne pas les lignes modifiées')
+            @('-Interval <s>', (L 'Délai entre deux exécutions (défaut : 2)')),
+            @('-Count <n>', (L 'Nombre d''exécutions (défaut : 0 = jusqu''à Q)')),
+            @('-NoDiff', (L 'Ne surligne pas les lignes modifiées'))
         ) `
         -Examples @('watch "Get-ChildItem *.log"', 'watch -Interval 5 "git status -s"', 'watch "ports 3000"') `
-        -Notes @('Touches : Q quitter · Espace relancer tout de suite')
+        -Notes @(L 'Touches : Q quitter · Espace relancer tout de suite')
     if ($Help -or $Command) { exit 0 } else { exit 1 }
 }
 
@@ -36,7 +37,7 @@ if (-not $interactive -and $Count -eq 0) { $Count = 1 }
 
 function Get-Output {
     try { $out = & $block 2>&1 | Out-String -Width 200 }
-    catch { $out = "Erreur : $($_.Exception.Message)" }
+    catch { $out = L 'Erreur : {0}' $_.Exception.Message }
     return @(($out -replace "`r", '').TrimEnd() -split "`n")
 }
 
@@ -60,7 +61,7 @@ try {
 
         $frame = @()
         $frame += ' ' + (Get-PstHeaderLine -Tool 'watch' -Subtitle (Limit-PstText $text 50) -Width ($width - 1))
-        $frame += ' ' + (Paint "toutes les ${Interval}s $($g.Dot) exécution n° $runs $($g.Dot) $changes changement(s) $($g.Dot) $(Get-Date -Format 'HH:mm:ss') $($g.Dot) Q quitter" 'Dim')
+        $frame += ' ' + (Paint (L 'toutes les {1}s {0} exécution n° {2} {0} {3} changement(s) {0} {4} {0} Q quitter' $g.Dot $Interval $runs $changes (Get-Date -Format 'HH:mm:ss')) 'Dim')
         $frame += ''
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = Limit-PstText $lines[$i] ($width - 2)

@@ -1,0 +1,16 @@
+﻿@{
+    'Affiche la fin d''un journal et suit les nouvelles lignes.' = 'Shows the end of a log file and follows new lines.'
+    'logtail <fichier> [-Lines <n>] [-Filter <regex>] [-Exclude <regex>] [-NoFollow]' = 'logtail <file> [-Lines <n>] [-Filter <regex>] [-Exclude <regex>] [-NoFollow]'
+    'Nombre de lignes initiales (défaut : 20)' = 'Number of initial lines (default: 20)'
+    'Ne garde que les lignes correspondantes (surlignées)' = 'Keeps only matching lines (highlighted)'
+    'Masque les lignes correspondantes' = 'Hides matching lines'
+    'Affiche la fin du fichier puis quitte' = 'Shows the end of the file, then exits'
+    'Touches : Q quitter · Espace insérer un repère horodaté' = 'Keys: Q quit · Space insert a timestamped marker'
+    'Fichier introuvable : {0}' = 'File not found: {0}'
+    'Expression régulière invalide : {0}' = 'Invalid regular expression: {0}'
+    '{0} filtre « {1} »' = '{0} filter "{1}"'
+    '{0} journal réinitialisé {0}' = '{0} log reset {0}'
+    '{0} repère {1} {0}' = '{0} marker {1} {0}'
+    'Lecture impossible : {0}' = 'Cannot read file: {0}'
+    '{1} ligne(s) {0} {2} erreur(s) {0} {3} avertissement(s)' = '{1} line(s) {0} {2} error(s) {0} {3} warning(s)'
+}

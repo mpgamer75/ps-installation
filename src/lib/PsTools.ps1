@@ -5,7 +5,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 $script:Pst = @{
-    Version   = '2.3.0'
+    Version   = '2.4.0'
     Repo      = 'mpgamer75/ps-installation'
     Esc       = [string][char]27
     # PSTOOLS_TEST_WINDOWS : réservé aux tests, pour exercer le rendu hors Windows avec des données simulées.
@@ -13,22 +13,57 @@ $script:Pst = @{
     Ansi      = $false
     Glyph     = @{}
     Theme     = @{}
-    ThemeName = 'nuit'
+    ThemeName = 'cyan'
+    Lang      = 'fr'
+    # Dossier de la bibliothèque (vide quand elle est chargée depuis le web par l'amorce).
+    LibDir    = $PSScriptRoot
 }
+$script:PstStrings = @{}       # toutes les traductions (repli)
+$script:PstStringSets = @{}    # une table par dictionnaire : le contexte de chaque fichier prime
+$script:PstStringWanted = New-Object System.Collections.ArrayList   # dictionnaires demandés, même en français
 
 # Palettes : chaque outil n'utilise que ces sept rôles de couleur.
 $script:PstThemes = [ordered]@{
-    nuit  = @{ Label = 'Nuit'; Hint = 'défaut, fond sombre'; Accent = @(86, 182, 255); Accent2 = @(178, 132, 255); Ok = @(80, 220, 140); Warn = @(255, 190, 80); Err = @(255, 95, 110); Dim = @(125, 133, 150); Title = @(240, 244, 255) }
-    ocean = @{ Label = 'Océan'; Hint = 'turquoise et bleu, fond sombre'; Accent = @(64, 200, 224); Accent2 = @(96, 140, 255); Ok = @(70, 220, 170); Warn = @(255, 200, 90); Err = @(255, 100, 120); Dim = @(120, 140, 160); Title = @(230, 245, 255) }
-    ambre = @{ Label = 'Ambre'; Hint = 'tons chauds, fond sombre'; Accent = @(255, 176, 59); Accent2 = @(255, 122, 89); Ok = @(170, 220, 110); Warn = @(255, 214, 102); Err = @(255, 92, 82); Dim = @(150, 140, 125); Title = @(255, 242, 224) }
-    clair = @{ Label = 'Clair'; Hint = 'pour les terminaux à fond blanc'; Accent = @(0, 105, 190); Accent2 = @(125, 60, 200); Ok = @(0, 135, 70); Warn = @(175, 100, 0); Err = @(200, 35, 55); Dim = @(105, 112, 128); Title = @(25, 30, 40) }
-    mono  = @{ Label = 'Mono'; Hint = 'nuances de gris, sobre'; Accent = @(215, 215, 215); Accent2 = @(175, 175, 175); Ok = @(200, 200, 200); Warn = @(235, 235, 235); Err = @(255, 255, 255); Dim = @(120, 120, 120); Title = @(250, 250, 250) }
+    # Rôles : Accent, Accent2, Ok, Warn, Err, Dim, Title (texte) ; Secondary (texte secondaire) ;
+    # Border (cadres) ; Selected (fond de la ligne choisie) ; Surface / Raised (fonds des panneaux).
+    cyan  = @{ Label = 'Cyan'; Hint = 'défaut · panneaux sombres, accent cyan'
+        Accent = @(34, 211, 238); Accent2 = @(167, 139, 250); Ok = @(52, 211, 153); Warn = @(251, 191, 36); Err = @(248, 113, 113)
+        Dim = @(100, 116, 139); Title = @(230, 241, 255); Secondary = @(159, 178, 204); Border = @(56, 70, 99); Selected = @(32, 50, 81); Surface = @(13, 18, 32); Raised = @(18, 26, 43) }
+    nuit  = @{ Label = 'Nuit'; Hint = 'bleu et violet, fond sombre'
+        Accent = @(86, 182, 255); Accent2 = @(178, 132, 255); Ok = @(80, 220, 140); Warn = @(255, 190, 80); Err = @(255, 95, 110)
+        Dim = @(125, 133, 150); Title = @(240, 244, 255); Secondary = @(170, 178, 196); Border = @(80, 88, 110); Selected = @(38, 46, 74); Surface = @(16, 18, 28); Raised = @(24, 27, 40) }
+    ocean = @{ Label = 'Océan'; Hint = 'turquoise et bleu, fond sombre'
+        Accent = @(64, 200, 224); Accent2 = @(96, 140, 255); Ok = @(70, 220, 170); Warn = @(255, 200, 90); Err = @(255, 100, 120)
+        Dim = @(120, 140, 160); Title = @(230, 245, 255); Secondary = @(160, 185, 205); Border = @(60, 92, 112); Selected = @(22, 58, 74); Surface = @(8, 22, 30); Raised = @(14, 32, 42) }
+    ambre = @{ Label = 'Ambre'; Hint = 'tons chauds, fond sombre'
+        Accent = @(255, 176, 59); Accent2 = @(255, 122, 89); Ok = @(170, 220, 110); Warn = @(255, 214, 102); Err = @(255, 92, 82)
+        Dim = @(150, 140, 125); Title = @(255, 242, 224); Secondary = @(205, 190, 168); Border = @(110, 92, 70); Selected = @(70, 52, 30); Surface = @(24, 18, 12); Raised = @(34, 26, 18) }
+    clair = @{ Label = 'Clair'; Hint = 'pour les terminaux à fond blanc'
+        Accent = @(0, 105, 190); Accent2 = @(125, 60, 200); Ok = @(0, 135, 70); Warn = @(175, 100, 0); Err = @(200, 35, 55)
+        Dim = @(105, 112, 128); Title = @(25, 30, 40); Secondary = @(70, 78, 95); Border = @(170, 178, 192); Selected = @(214, 228, 245); Surface = @(248, 250, 252); Raised = @(238, 242, 247) }
+    mono  = @{ Label = 'Mono'; Hint = 'nuances de gris, sobre'
+        Accent = @(215, 215, 215); Accent2 = @(175, 175, 175); Ok = @(200, 200, 200); Warn = @(235, 235, 235); Err = @(255, 255, 255)
+        Dim = @(120, 120, 120); Title = @(250, 250, 250); Secondary = @(185, 185, 185); Border = @(95, 95, 95); Selected = @(60, 60, 60); Surface = @(20, 20, 20); Raised = @(30, 30, 30) }
+}
+
+function Get-PstThemeText {
+    # Nom et description d'un thème dans la langue choisie : @{ Label; Hint }.
+    param([string]$Name)
+    switch ($Name) {
+        'cyan' { return @{ Label = 'Cyan'; Hint = (L 'défaut · panneaux sombres, accent cyan') } }
+        'nuit' { return @{ Label = (L 'Nuit'); Hint = (L 'bleu et violet, fond sombre') } }
+        'ocean' { return @{ Label = (L 'Océan'); Hint = (L 'turquoise et bleu, fond sombre') } }
+        'ambre' { return @{ Label = (L 'Ambre'); Hint = (L 'tons chauds, fond sombre') } }
+        'clair' { return @{ Label = (L 'Clair'); Hint = (L 'pour les terminaux à fond blanc') } }
+        'mono' { return @{ Label = 'Mono'; Hint = (L 'nuances de gris, sobre') } }
+    }
+    return @{ Label = $Name; Hint = '' }
 }
 
 function Set-PstTheme {
     # Applique une palette pour la session en cours (sans l'enregistrer).
     param([string]$Name)
-    if (-not $Name -or -not $script:PstThemes.Contains($Name)) { $Name = 'nuit' }
+    if (-not $Name -or -not $script:PstThemes.Contains($Name)) { $Name = 'cyan' }
     $script:Pst.ThemeName = $Name
     $script:Pst.Theme = $script:PstThemes[$Name]
 }
@@ -46,12 +81,15 @@ function Initialize-PstConsole {
     if (-not $theme) { try { $theme = [string](Get-PstConfig).theme } catch { $theme = $null } }
     Set-PstTheme $theme
 
+    $script:Pst.Lang = Get-PstLanguage
+    Import-PstStrings 'PsTools'
+
     if ($env:PSTOOLS_ASCII) {
         $script:Pst.Glyph = @{
             H = '-'; V = '|'; TL = '+'; TR = '+'; BL = '+'; BR = '+'
             Full = '#'; Empty = '.'; Ok = 'v'; Err = 'x'; Warn = '!'; Info = '*'
             Pointer = '>'; Dot = '-'; Up = '^'; Down = 'v'; Ellipsis = '~'
-            On = '[x]'; Off = '[ ]'; Lock = '[admin]'
+            On = '[x]'; Off = '[ ]'; Lock = '[admin]'; Bullet = '*'; Hollow = 'o'; Sep = '|'
             Spark = @('_', '_', '.', '.', '-', '-', '=', '#')
         }
     }
@@ -60,8 +98,13 @@ function Initialize-PstConsole {
             H = '─'; V = '│'; TL = '╭'; TR = '╮'; BL = '╰'; BR = '╯'
             Full = '█'; Empty = '░'; Ok = '√'; Err = '×'; Warn = '!'; Info = '•'
             Pointer = '►'; Dot = '·'; Up = '↑'; Down = '↓'; Ellipsis = '…'
-            On = '[■]'; Off = '[ ]'; Lock = '[admin]'
+            On = '[■]'; Off = '[ ]'; Lock = '[admin]'; Bullet = '●'; Hollow = '○'; Sep = '│'
             Spark = @('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+        }
+        # Windows Terminal, VS Code et les terminaux Unix ont une police de secours pour ✓ ✗ ▸ ;
+        # l'ancienne console Windows (conhost + Consolas) garde √ × ►.
+        if ($env:WT_SESSION -or $env:TERM_PROGRAM -or -not $script:Pst.IsWindows -or $env:PSTOOLS_RICH) {
+            $script:Pst.Glyph.Ok = '✓'; $script:Pst.Glyph.Err = '✗'; $script:Pst.Glyph.Pointer = '▸'
         }
     }
 }
@@ -73,15 +116,19 @@ function Paint {
     param(
         [Parameter(Position = 0)][AllowEmptyString()][string]$Text = '',
         [Parameter(Position = 1)]$Color = $null,
-        [switch]$Bold
+        [switch]$Bold,
+        $Bg = $null
     )
     if (-not $script:Pst.Ansi -or $Text.Length -eq 0) { return $Text }
     $rgb = $null
     if ($Color -is [string]) { $rgb = $script:Pst.Theme[$Color] }
     elseif ($Color) { $rgb = $Color }
+    $back = $null
+    if ($Bg -is [string]) { $back = $script:Pst.Theme[$Bg] } elseif ($Bg) { $back = $Bg }
     $codes = @()
     if ($Bold) { $codes += '1' }
     if ($rgb) { $codes += ('38;2;{0};{1};{2}' -f [int]$rgb[0], [int]$rgb[1], [int]$rgb[2]) }
+    if ($back) { $codes += ('48;2;{0};{1};{2}' -f [int]$back[0], [int]$back[1], [int]$back[2]) }
     if ($codes.Count -eq 0) { return $Text }
     $e = $script:Pst.Esc
     return ('{0}[{1}m{2}{0}[0m' -f $e, ($codes -join ';'), $Text)
@@ -146,6 +193,7 @@ function Limit-PstText {
 function Format-PstSize {
     param([double]$Bytes)
     $units = 'o', 'Ko', 'Mo', 'Go', 'To', 'Po'
+    if ($script:Pst.Lang -eq 'en') { $units = 'B', 'KB', 'MB', 'GB', 'TB', 'PB' }
     $i = 0
     $value = [Math]::Abs($Bytes)
     while ($value -ge 1024 -and $i -lt $units.Count - 1) { $value /= 1024; $i++ }
@@ -156,7 +204,9 @@ function Format-PstSize {
 function Format-PstDuration {
     param([TimeSpan]$Span)
     if ($Span.TotalSeconds -lt 0) { $Span = $Span.Negate() }
-    if ($Span.TotalDays -ge 1) { return ('{0}j {1}h {2:00}m' -f [int][Math]::Floor($Span.TotalDays), $Span.Hours, $Span.Minutes) }
+    $day = 'j'
+    if ($script:Pst.Lang -eq 'en') { $day = 'd' }
+    if ($Span.TotalDays -ge 1) { return ('{0}{3} {1}h {2:00}m' -f [int][Math]::Floor($Span.TotalDays), $Span.Hours, $Span.Minutes, $day) }
     if ($Span.TotalHours -ge 1) { return ('{0}h {1:00}m' -f $Span.Hours, $Span.Minutes) }
     if ($Span.TotalMinutes -ge 1) { return ('{0}m {1:00}s' -f $Span.Minutes, $Span.Seconds) }
     return ('{0}s' -f $Span.Seconds)
@@ -196,7 +246,7 @@ function Format-PstSparkline {
 
 function Format-PstBox {
     # Encadré à coins arrondis ; retourne les lignes prêtes à afficher.
-    param([string]$Title = '', [string[]]$Lines = @(), [int]$Width = 0, $Color = 'Dim')
+    param([string]$Title = '', [string[]]$Lines = @(), [int]$Width = 0, $Color = 'Border')
     $g = $script:Pst.Glyph
     if ($Width -le 0) {
         $Width = (Get-PstVisibleLength $Title) + 6
@@ -205,8 +255,11 @@ function Format-PstBox {
     $inner = $Width - 2
     $out = @()
     if ($Title) {
+        $Title = $Title.ToUpper()
         $rest = [Math]::Max($inner - (Get-PstVisibleLength $Title) - 3, 0)
-        $out += (Paint ($g.TL + $g.H + ' ') $Color) + (Paint $Title 'Title' -Bold) + (Paint (' ' + ($g.H * $rest) + $g.TR) $Color)
+        $titleColor = 'Accent'
+        if ($Color -ne 'Border' -and $Color -ne 'Dim') { $titleColor = $Color }
+        $out += (Paint ($g.TL + $g.H + ' ') $Color) + (Paint $Title $titleColor -Bold) + (Paint (' ' + ($g.H * $rest) + $g.TR) $Color)
     }
     else {
         $out += Paint ($g.TL + ($g.H * $inner) + $g.TR) $Color
@@ -224,7 +277,7 @@ function Format-PstTable {
     $out = @()
     $head = ''
     foreach ($c in $Columns) { $head += (Format-PstPad $c.Name $c.Width -Right:([bool]$c.Right)) + '  ' }
-    $out += Paint $head.TrimEnd() 'Dim'
+    $out += Paint $head.TrimEnd() 'Accent' -Bold
     foreach ($row in $Rows) {
         $line = ''
         for ($i = 0; $i -lt $Columns.Count; $i++) {
@@ -287,11 +340,12 @@ function Get-PstBanner {
 }
 
 function Show-PstBanner {
-    param([string]$Tagline = 'La boîte à outils du terminal Windows')
+    param([string]$Tagline)
+    if (-not $Tagline) { $Tagline = L 'La boîte à outils du terminal Windows' }
     Get-PstBanner | Write-PstLine
-    $mode = 'utilisateur'
-    if (Test-PstAdmin) { $mode = 'administrateur' }
-    Write-Host ('  ' + (Paint $Tagline 'Title') + (Paint ("  $($script:Pst.Glyph.Dot)  v$($script:Pst.Version)  $($script:Pst.Glyph.Dot)  mode $mode") 'Dim'))
+    $mode = L 'mode utilisateur'
+    if (Test-PstAdmin) { $mode = L 'mode administrateur' }
+    Write-Host ('  ' + (Paint $Tagline 'Title') + (Paint ("  $($script:Pst.Glyph.Dot)  v$($script:Pst.Version)  $($script:Pst.Glyph.Dot)  $mode") 'Dim'))
     Write-Host ''
 }
 
@@ -300,15 +354,30 @@ function Get-PstHeaderLine {
     param([string]$Tool, [string]$Subtitle = '', [int]$Width = 0)
     if ($Width -le 0) { $Width = Get-PstWidth }
     $g = $script:Pst.Glyph
-    $left = (Format-PstGradient "$($g.Pointer)_ ps-tools" -Bold) + (Paint " / " 'Dim') + (Paint $Tool 'Title' -Bold)
-    if ($Subtitle) { $left += Paint "  $($g.Dot) $Subtitle" 'Dim' }
-    $mode = 'utilisateur'
-    $modeColor = 'Dim'
-    if (Test-PstAdmin) { $mode = 'admin'; $modeColor = 'Warn' }
-    $right = (Paint "v$($script:Pst.Version) $($g.Dot) " 'Dim') + (Paint $mode $modeColor)
+    # Style « barre de titre » : ▸ ps-tools │ OUTIL · précision           ● mode
+    $left = (Paint "$($g.Pointer) " 'Accent') + (Paint 'ps-tools' 'Title' -Bold) + (Paint " $($g.Sep) " 'Border') + (Paint $Tool.ToUpper() 'Accent' -Bold)
+    if ($Subtitle) { $left += Paint "  $($g.Dot) $Subtitle" 'Secondary' }
+    $mode = L 'utilisateur'
+    $modeColor = 'Ok'
+    if (Test-PstAdmin) { $mode = L 'admin'; $modeColor = 'Warn' }
+    $right = (Paint "v$($script:Pst.Version)  " 'Dim') + (Paint $g.Bullet $modeColor) + ' ' + (Paint $mode 'Secondary')
     $gap = $Width - (Get-PstVisibleLength $left) - (Get-PstVisibleLength $right)
     if ($gap -lt 2) { return $left }
     return $left + (' ' * $gap) + $right
+}
+
+function Format-PstKeyBar {
+    # Barre « KEYS » : @(@('↑↓', 'naviguer'), @('Entrée', 'valider')) ; -Bar ajoute le fond.
+    param([object[]]$Keys, [switch]$Bar, [int]$Width = 0)
+    $g = $script:Pst.Glyph
+    if ($Keys.Count -and $Keys[0] -is [string]) { $Keys = , $Keys }   # une seule paire
+    if ($Bar -and $script:Pst.Ansi) {
+        $plain = ' ' + (L 'TOUCHES') + '  ' + (($Keys | ForEach-Object { "$($_[0]) $($_[1])" }) -join " $($g.Sep) ")
+        if ($Width -gt 0) { $plain = Format-PstPad (Limit-PstText $plain $Width) $Width }
+        return (Paint $plain 'Title' -Bold -Bg 'Selected')
+    }
+    $parts = @($Keys | ForEach-Object { (Paint $_[0] 'Accent') + ' ' + (Paint $_[1] 'Dim') })
+    return ((Paint (L 'TOUCHES') 'Dim' -Bold) + '  ' + ($parts -join (Paint " $($g.Sep) " 'Border')))
 }
 
 function Show-PstHeader {
@@ -324,23 +393,23 @@ function Show-PstHelp {
         [string]$Name, [string]$Synopsis, [string[]]$Usage = @(),
         [object[]]$Options = @(), [string[]]$Examples = @(), [string[]]$Notes = @()
     )
-    Show-PstHeader -Tool $Name -Subtitle 'aide'
+    Show-PstHeader -Tool $Name -Subtitle (L 'aide')
     Write-Host "  $Synopsis"
     Write-Host ''
     if ($Usage.Count) {
-        Write-Host ('  ' + (Paint 'UTILISATION' 'Accent' -Bold))
+        Write-Host ('  ' + (Paint (L 'UTILISATION') 'Accent' -Bold))
         foreach ($u in $Usage) { Write-Host "    $u" }
         Write-Host ''
     }
     if ($Options.Count) {
-        Write-Host ('  ' + (Paint 'OPTIONS' 'Accent' -Bold))
+        Write-Host ('  ' + (Paint (L 'OPTIONS') 'Accent' -Bold))
         $w = 0
         foreach ($o in $Options) { $w = [Math]::Max($w, ([string]$o[0]).Length) }
         foreach ($o in $Options) { Write-Host ('    ' + (Paint (([string]$o[0]).PadRight($w)) 'Title') + '  ' + (Paint ([string]$o[1]) 'Dim')) }
         Write-Host ''
     }
     if ($Examples.Count) {
-        Write-Host ('  ' + (Paint 'EXEMPLES' 'Accent' -Bold))
+        Write-Host ('  ' + (Paint (L 'EXEMPLES') 'Accent' -Bold))
         foreach ($x in $Examples) { Write-Host ('    ' + (Paint $x 'Ok')) }
         Write-Host ''
     }
@@ -422,11 +491,13 @@ function Test-PstQuitKey {
 function Read-PstConfirm {
     param([string]$Question, [switch]$DefaultYes)
     if (-not (Test-PstInteractive)) { return [bool]$DefaultYes }
-    $hint = '[o/N]'
-    if ($DefaultYes) { $hint = '[O/n]' }
+    # Pas de dictionnaire ici : « [o/N] » et « [O/n] » ne diffèrent que par la casse.
+    $yes = 'o'; if ($script:Pst.Lang -eq 'en') { $yes = 'y' }
+    $hint = "[$yes/N]"
+    if ($DefaultYes) { $hint = "[$($yes.ToUpper())/n]" }
     $answer = Read-Host ("  $(Paint '?' 'Accent' -Bold) $Question $hint")
     if ([string]::IsNullOrWhiteSpace($answer)) { return [bool]$DefaultYes }
-    return ($answer.Trim() -match '^(o|oui|y|yes)$')
+    return ($answer.Trim() -match '^(o|oui|y|yes|ok)$')
 }
 
 function Read-PstChoice {
@@ -448,22 +519,35 @@ function Read-PstChoice {
     if (-not $script:Pst.Ansi -or -not (Test-PstInteractive)) {
         for ($i = 0; $i -lt $Items.Count; $i++) { Write-Host (("    {0}. " -f ($i + 1)) + (Format-PstPad $Items[$i] $labelWidth) + (& $hintOf $i)) }
         if (-not (Test-PstInteractive)) { return $Default }
-        $answer = Read-Host '  Votre choix'
+        $answer = Read-Host ('  ' + (L 'Votre choix'))
         if ($answer -match '^\d+$' -and [int]$answer -ge 1 -and [int]$answer -le $Items.Count) { return ([int]$answer - 1) }
         return -1
     }
 
     $e = $script:Pst.Esc
     $index = [Math]::Max(0, [Math]::Min($Default, $Items.Count - 1))
+    $barWidth = 0
+    for ($i = 0; $i -lt $Items.Count; $i++) {
+        $w = $labelWidth + 4
+        if ($i -lt $Hints.Count -and $Hints[$i]) { $w += 2 + (Get-PstVisibleLength $Hints[$i]) }
+        $barWidth = [Math]::Max($barWidth, $w + 1)
+    }
+    $barWidth = [Math]::Min($barWidth, (Get-PstWidth -Max 120) - 4)
     Write-Host "$e[?25l" -NoNewline
     try {
         while ($true) {
             for ($i = 0; $i -lt $Items.Count; $i++) {
                 $label = Format-PstPad $Items[$i] $labelWidth
-                if ($i -eq $index) { Write-Host ("    $(Paint $g.Pointer 'Accent') " + (Paint $label 'Title' -Bold) + (& $hintOf $i) + "$e[K") }
-                else { Write-Host ("      " + (Paint $label 'Dim') + (& $hintOf $i) + "$e[K") }
+                if ($i -eq $index) {
+                    # Ligne choisie : barre pleine largeur sur fond « Selected ».
+                    $hint = ''
+                    if ($i -lt $Hints.Count -and $Hints[$i]) { $hint = '  ' + ($Hints[$i] -replace "$e\[[0-9;]*m", '') }
+                    $bar = Format-PstPad " $($g.Pointer) $label$hint " ([Math]::Max(40, $barWidth))
+                    Write-Host ('  ' + (Paint $bar 'Title' -Bold -Bg 'Selected') + "$e[K")
+                }
+                else { Write-Host ("     " + (Paint $label 'Secondary') + (& $hintOf $i) + "$e[K") }
             }
-            Write-Host ((Paint "    $($g.Up)$($g.Down) naviguer $($g.Dot) Entrée valider $($g.Dot) Échap annuler" 'Dim') + "$e[K")
+            Write-Host ('    ' + (Format-PstKeyBar @(@("$($g.Up)$($g.Down)", (L 'naviguer')), @((L 'Entrée'), (L 'valider')), @((L 'Échap'), (L 'annuler')))) + "$e[K")
             $key = [Console]::ReadKey($true)
             switch ($key.Key) {
                 'UpArrow'   { $index = ($index - 1 + $Items.Count) % $Items.Count }
@@ -501,7 +585,7 @@ function Read-PstMultiChoice {
             Write-Host ("    {0,2}. {1} {2}" -f ($i + 1), $mark, $Items[$i])
         }
         if (Test-PstInteractive) {
-            $answer = Read-Host '  Numéros séparés par des virgules (Entrée = sélection proposée, 0 = annuler)'
+            $answer = Read-Host ('  ' + (L 'Numéros séparés par des virgules (Entrée = sélection proposée, 0 = annuler)'))
             if ($answer.Trim() -eq '0') { return $null }
             if (-not [string]::IsNullOrWhiteSpace($answer)) {
                 for ($i = 0; $i -lt $count; $i++) { $state[$i] = $false }
@@ -520,13 +604,13 @@ function Read-PstMultiChoice {
         while ($true) {
             for ($i = 0; $i -lt $count; $i++) {
                 $cursor = '  '
-                if ($i -eq $index) { $cursor = (Paint $g.Pointer 'Accent') + ' ' }
+                if ($i -eq $index) { $cursor = (Paint $g.Pointer 'Accent' -Bold) + ' ' }
                 if ($locked[$i]) { $line = (Paint " -  $($Items[$i])" 'Dim') }
                 elseif ($state[$i]) { $line = (Paint $g.On 'Ok') + ' ' + $Items[$i] }
                 else { $line = (Paint $g.Off 'Dim') + ' ' + $Items[$i] }
                 Write-Host ("    $cursor$line$e[K")
             }
-            Write-Host ((Paint "    $($g.Up)$($g.Down) naviguer $($g.Dot) Espace cocher $($g.Dot) A tout $($g.Dot) Entrée valider $($g.Dot) Échap annuler" 'Dim') + "$e[K")
+            Write-Host ('    ' + (Format-PstKeyBar @(@("$($g.Up)$($g.Down)", (L 'naviguer')), @((L 'Espace'), (L 'cocher')), @('A', (L 'tout')), @((L 'Entrée'), (L 'valider')), @((L 'Échap'), (L 'annuler')))) + "$e[K")
             $key = [Console]::ReadKey($true)
             switch ($key.Key) {
                 'UpArrow'   { $index = ($index - 1 + $count) % $count }
@@ -547,7 +631,8 @@ function Read-PstMultiChoice {
 }
 
 function Wait-PstKey {
-    param([string]$Message = 'Appuyez sur une touche pour continuer...')
+    param([string]$Message)
+    if (-not $Message) { $Message = L 'Appuyez sur une touche pour continuer...' }
     if (-not (Test-PstInteractive)) { return }
     Write-Host ''
     Write-Host ('  ' + (Paint $Message 'Dim')) -NoNewline
@@ -585,7 +670,7 @@ function Assert-PstWindows {
     # Arrête proprement les outils qui dépendent d'API Windows.
     param([string]$Tool)
     if ($script:Pst.IsWindows) { return }
-    Write-PstStatus err "$Tool nécessite Windows."
+    Write-PstStatus err (L '{0} nécessite Windows.' $Tool)
     exit 1
 }
 
@@ -598,7 +683,7 @@ function Start-PstElevated {
         return $true
     }
     catch {
-        Write-PstStatus warn "Élévation annulée ou impossible : $($_.Exception.Message)"
+        Write-PstStatus warn (L 'Élévation annulée ou impossible : {0}' $_.Exception.Message)
         return $false
     }
 }
@@ -715,6 +800,88 @@ function Get-PstEffectivePolicy {
     return 'Restricted'
 }
 
+# ── Langue ───────────────────────────────────────────────────────────────────
+# Le texte français sert de clé : L 'Texte {0}' $valeur affiche la traduction
+# anglaise (dictionnaires i18n/en/<nom>.psd1) ou, à défaut, le français.
+
+function Get-PstLanguage {
+    # Ordre : PSTOOLS_LANG, réglage enregistré, langue de Windows (fr*, sinon en).
+    $lang = $env:PSTOOLS_LANG
+    if (-not $lang) { try { $lang = [string](Get-PstConfig).language } catch { $lang = $null } }
+    if (-not $lang) {
+        $lang = 'en'
+        try { if ((Get-Culture).TwoLetterISOLanguageName -eq 'fr' -or (Get-UICulture).TwoLetterISOLanguageName -eq 'fr') { $lang = 'fr' } } catch { $null = $_ }
+    }
+    if ($lang -notin 'fr', 'en') { $lang = 'en' }
+    return $lang
+}
+
+function Get-PstI18nPath {
+    param([string]$Name)
+    if (-not $script:Pst.LibDir) { return $null }
+    return (Join-Path (Join-Path (Join-Path (Split-Path -Parent $script:Pst.LibDir) 'i18n') 'en') "$Name.psd1")
+}
+
+function Import-PstStrings {
+    # Charge un dictionnaire anglais. -Text : contenu déjà lu (amorce depuis le web).
+    param([string]$Name, [string]$Text)
+    if (-not $script:PstStringWanted.Contains($Name)) { [void]$script:PstStringWanted.Add($Name) }
+    if ($script:Pst.Lang -eq 'fr' -or $script:PstStringSets.ContainsKey($Name)) { return }
+    if (-not $Text) {
+        $file = Get-PstI18nPath $Name
+        if (-not $file -or -not (Test-Path -LiteralPath $file)) { return }
+        $Text = [IO.File]::ReadAllText($file, [Text.Encoding]::UTF8)
+    }
+    try {
+        # Fichier de données uniquement : le langage restreint interdit toute commande.
+        $block = [scriptblock]::Create($Text.TrimStart([char]0xFEFF))
+        $block.CheckRestrictedLanguage([string[]]@(), [string[]]@(), $false)
+        $table = & $block
+        $own = @{}
+        foreach ($entry in $table.GetEnumerator()) {
+            $own[[string]$entry.Key] = [string]$entry.Value
+            if (-not $script:PstStrings.ContainsKey([string]$entry.Key)) { $script:PstStrings[[string]$entry.Key] = [string]$entry.Value }
+        }
+        $script:PstStringSets[$Name] = $own
+    }
+    catch { $null = $_ }
+}
+
+function L {
+    # Traduit (si la langue est l'anglais) puis remplit les {0}, {1}...
+    param([Parameter(Position = 0)][AllowEmptyString()][string]$Text, [Parameter(Position = 1, ValueFromRemainingArguments = $true)][object[]]$Values)
+    $out = $Text
+    if ($script:Pst.Lang -ne 'fr') {
+        # Ordre : dictionnaire du fichier appelant (ex. ask.ps1 -> ask), puis dictionnaire commun, puis tous.
+        $caller = $MyInvocation.ScriptName
+        $own = $null
+        if ($caller) { $own = $script:PstStringSets[[IO.Path]::GetFileNameWithoutExtension($caller)] }
+        $common = $script:PstStringSets['PsTools']
+        if ($own -is [hashtable] -and $own.ContainsKey($Text)) { $out = $own[$Text] }
+        elseif ($common -is [hashtable] -and $common.ContainsKey($Text)) { $out = $common[$Text] }
+        elseif ($script:PstStrings.ContainsKey($Text)) { $out = $script:PstStrings[$Text] }
+    }
+    # Pas de « if ($Values) » : un tableau d'un seul 0 serait évalué comme faux.
+    if ($null -ne $Values -and $Values.Count -gt 0) { return ($out -f $Values) }
+    return $out
+}
+
+function Get-PstCulture {
+    # Culture d'affichage des dates (noms de jours et de mois) selon la langue choisie.
+    if ($script:Pst.Lang -eq 'en') { return [Globalization.CultureInfo]::GetCultureInfo('en-US') }
+    return [Globalization.CultureInfo]::GetCultureInfo('fr-FR')
+}
+
+function Set-PstLanguage {
+    param([string]$Lang)
+    if ($Lang -notin 'fr', 'en') { $Lang = 'en' }
+    $script:Pst.Lang = $Lang
+    $script:PstStrings = @{}
+    $script:PstStringSets = @{}
+    foreach ($name in @($script:PstStringWanted)) { Import-PstStrings $name }
+}
+
+
 # ── Configuration et secrets ─────────────────────────────────────────────────
 # config.json : préférences (thème, assistant IA, intégration au shell).
 # secrets.json : clés d'API, chiffrées pour le compte Windows courant (DPAPI).
@@ -765,7 +932,8 @@ function Write-PstJsonFile {
 function Get-PstConfig {
     # Toujours une configuration complète : valeurs par défaut recouvertes par config.json.
     $config = @{
-        theme = 'nuit'
+        theme    = 'cyan'
+        language = ''
         ai    = @{ provider = ''; model = ''; effort = 'low'; budget = 0; baseUrl = ''; prices = @{} }
         shell = @{ prompt = $true; keys = $true; aliases = $true; remedy = ''; trustedHost = ''; previousPolicy = '' }
     }
@@ -824,13 +992,14 @@ function Format-PstWrap {
 
 function Show-PstWizardFrame {
     # Écran d'étape : logo compact, fil d'Ariane des étapes, titre et explication.
-    param([string[]]$Steps, [int]$Current, [string]$Title, [string]$Text = '', [string]$Caption = 'assistant d''installation')
+    param([string[]]$Steps, [int]$Current, [string]$Title, [string]$Text = '', [string]$Caption)
+    if (-not $Caption) { $Caption = L 'assistant d''installation' }
     $g = $script:Pst.Glyph
     $interactive = (Test-PstInteractive) -and $script:Pst.Ansi
     if ($interactive) { try { Clear-Host } catch { $null = $_ } }
     $width = Get-PstWidth -Max 90
     Write-Host ''
-    Write-Host (' ' + (Format-PstGradient "$($g.Pointer)_ ps-tools" -Bold) + (Paint "  $($g.Dot)  $Caption  $($g.Dot)  v$($script:Pst.Version)" 'Dim'))
+    Write-Host (' ' + (Paint "$($g.Pointer) " 'Accent') + (Paint 'ps-tools' 'Title' -Bold) + (Paint " $($g.Sep) " 'Border') + (Paint $Caption.ToUpper() 'Accent' -Bold) + (Paint "   v$($script:Pst.Version)" 'Dim'))
     Write-Host ''
 
     if ($Steps.Count -gt 1) {
@@ -838,16 +1007,16 @@ function Show-PstWizardFrame {
         if ($env:PSTOOLS_ASCII) { $done = '*'; $here = '>'; $todo = 'o' }
         $parts = @()
         for ($i = 0; $i -lt $Steps.Count; $i++) {
-            if ($i -lt $Current) { $parts += (Paint $done 'Ok') + ' ' + (Paint $Steps[$i] 'Dim') }
-            elseif ($i -eq $Current) { $parts += (Paint $here 'Accent' -Bold) + ' ' + (Paint $Steps[$i] 'Title' -Bold) }
+            if ($i -lt $Current) { $parts += (Paint $done 'Ok') + ' ' + (Paint $Steps[$i] 'Secondary') }
+            elseif ($i -eq $Current) { $parts += Paint " $here $($Steps[$i]) " 'Accent' -Bold -Bg 'Selected' }
             else { $parts += (Paint $todo 'Dim') + ' ' + (Paint $Steps[$i] 'Dim') }
         }
         $trail = ' ' + ($parts -join (Paint " $($g.H) " 'Dim'))
         if ((Get-PstVisibleLength $trail) -gt $width) {
-            $trail = ' ' + (Paint "Étape $($Current + 1)/$($Steps.Count)" 'Accent' -Bold) + (Paint "  $($g.Dot)  $($Steps[$Current])" 'Dim')
+            $trail = ' ' + (Paint (L 'Étape {0}/{1}' ($Current + 1) $Steps.Count) 'Accent' -Bold) + (Paint "  $($g.Dot)  $($Steps[$Current])" 'Dim')
         }
         Write-Host $trail
-        Write-Host (' ' + (Paint ($g.H * ($width - 2)) 'Dim'))
+        Write-Host (' ' + (Paint ($g.H * ($width - 2)) 'Border'))
         Write-Host ''
     }
     Write-Host ('  ' + (Paint $Title 'Title' -Bold))

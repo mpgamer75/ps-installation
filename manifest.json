@@ -1,6 +1,6 @@
 {
   "name": "ps-tools",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "La boîte à outils du terminal Windows",
   "repository": "https://github.com/mpgamer75/ps-installation",
   "minPowerShellVersion": "5.1",
@@ -32,110 +32,410 @@
       "category": "Gestion",
       "admin": "non",
       "required": true,
-      "description": "Gestionnaire : réglages, menu, raccourcis, intégration au shell, mise à jour"
+      "description": "Gestionnaire : réglages, menu, raccourcis, intégration au shell, mise à jour",
+      "description_en": "Manager: dashboard, settings, shell integration, updates",
+      "examples": [
+        "pst",
+        "pst setup",
+        "pst doctor"
+      ]
     },
     {
       "name": "pst-uninstall",
       "category": "Gestion",
       "admin": "non",
       "required": true,
-      "description": "Désinstalle ps-tools : commandes, PATH, intégration au shell, rappels planifiés"
+      "description": "Désinstalle ps-tools : commandes, PATH, intégration au shell, rappels planifiés",
+      "description_en": "Uninstalls ps-tools: commands, PATH, shell integration, reminders",
+      "examples": [
+        "pst-uninstall"
+      ]
     },
     {
       "name": "ask",
       "category": "IA",
       "admin": "non",
-      "description": "Assistant IA (Claude, GPT, Gemini, Mistral, Ollama...) : jetons et coût affichés"
+      "description": "Assistant IA (Claude, GPT, Gemini, Mistral, Ollama...) : jetons et coût affichés",
+      "description_en": "AI assistant (Claude, GPT, Gemini, Mistral, Ollama...): tokens and cost shown",
+      "examples": [
+        "ask \"comment renommer 200 photos par date ?\"",
+        "ask -Cmd \"les 10 plus gros fichiers\"",
+        "Get-Content erreur.log | ask \"que s'est-il passé ?\"",
+        "ask -Usage"
+      ],
+      "args": "required",
+      "examples_en": [
+        "ask \"how do I rename 200 photos by date?\"",
+        "ask -Cmd \"the 10 biggest files here\"",
+        "Get-Content error.log | ask \"what happened?\"",
+        "ask -Usage"
+      ]
     },
     {
       "name": "monitor",
       "category": "Système",
       "admin": "non",
-      "description": "Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus"
+      "description": "Tableau de bord temps réel : CPU, mémoire, disques, réseau, processus",
+      "description_en": "Live dashboard: CPU, memory, disks, network, processes",
+      "examples": [
+        "monitor",
+        "monitor -Interval 1 -Top 12"
+      ]
     },
     {
       "name": "sysinfo",
       "category": "Système",
       "admin": "non",
-      "description": "Carte d'identité de la machine, façon neofetch"
+      "description": "Carte d'identité de la machine, façon neofetch",
+      "description_en": "Your PC's identity card, neofetch style",
+      "examples": [
+        "sysinfo",
+        "sysinfo -Json"
+      ]
     },
     {
       "name": "clean",
       "category": "Système",
       "admin": "optionnel",
-      "description": "Nettoyeur avec aperçu : temporaires, caches, corbeille"
+      "description": "Nettoyeur avec aperçu : temporaires, caches, corbeille",
+      "description_en": "Cleaner with preview: temp files, caches, recycle bin",
+      "examples": [
+        "clean -DryRun",
+        "clean",
+        "clean -Only temp,browsers -Yes"
+      ]
     },
     {
       "name": "watch",
-      "category": "Observation",
+      "category": "Système",
       "admin": "non",
-      "description": "Relance une commande et surligne ce qui change (watch -d)"
+      "description": "Relance une commande et surligne ce qui change (watch -d)",
+      "description_en": "Re-runs a command and highlights what changes (watch -d)",
+      "examples": [
+        "watch \"Get-ChildItem *.log\"",
+        "watch -Interval 5 \"git status -s\""
+      ],
+      "args": "required"
     },
     {
       "name": "logtail",
-      "category": "Observation",
+      "category": "Système",
       "admin": "non",
-      "description": "Suit un journal en direct, couleurs par niveau et filtre (tail -f)"
+      "description": "Suit un journal en direct, couleurs par niveau et filtre (tail -f)",
+      "description_en": "Follows a log live, colours by level, filter (tail -f)",
+      "examples": [
+        "logtail .\\app.log",
+        "logtail app.log -Filter \"error|timeout\""
+      ],
+      "args": "required"
     },
     {
       "name": "events",
-      "category": "Observation",
+      "category": "Système",
       "admin": "optionnel",
-      "description": "Erreurs et avertissements récents du journal Windows, regroupés"
+      "description": "Erreurs et avertissements récents du journal Windows, regroupés",
+      "description_en": "Recent Windows errors and warnings, grouped",
+      "examples": [
+        "events",
+        "events -Hours 72 -Level error"
+      ]
     },
     {
       "name": "gst",
       "category": "Code",
       "admin": "non",
-      "description": "Tableau de bord Git : branche, synchronisation, modifications"
+      "description": "Tableau de bord Git : branche, synchronisation, modifications",
+      "description_en": "Git dashboard: branch, sync, changes",
+      "examples": [
+        "gst"
+      ]
     },
     {
       "name": "loc",
       "category": "Code",
       "admin": "non",
-      "description": "Lignes de code par langage et notes TODO/FIXME (cloc)"
+      "description": "Lignes de code par langage et notes TODO/FIXME (cloc)",
+      "description_en": "Lines of code per language and TODO/FIXME notes (cloc)",
+      "examples": [
+        "loc",
+        "loc -Todo"
+      ]
     },
     {
       "name": "serve",
       "category": "Code",
       "admin": "optionnel",
-      "description": "Serveur web local instantané pour un dossier"
+      "description": "Serveur web local instantané pour un dossier",
+      "description_en": "Instant local web server for a folder",
+      "examples": [
+        "serve",
+        "serve .\\dist -Port 3000 -Open"
+      ]
     },
     {
       "name": "dev",
       "category": "Code",
       "admin": "non",
-      "description": "Couteau suisse : uuid, mots de passe, hash, base64, JSON, JWT, dates"
+      "description": "Couteau suisse : uuid, mots de passe, hash, base64, JSON, JWT, dates",
+      "description_en": "Swiss-army knife: uuid, passwords, hash, base64, JSON, JWT, dates",
+      "examples": [
+        "dev pass -Length 24 -Copy",
+        "dev uuid",
+        "dev hash .\\setup.exe",
+        "Get-Content data.json | dev json"
+      ],
+      "args": "required"
     },
     {
       "name": "dsize",
       "category": "Fichiers",
       "admin": "optionnel",
-      "description": "Classe le contenu d'un dossier par taille (du -sh)"
+      "description": "Classe le contenu d'un dossier par taille (du -sh)",
+      "description_en": "Ranks a folder's content by size (du -sh)",
+      "examples": [
+        "dsize",
+        "dsize C:\\Users\\moi -Top 25",
+        "dsize D:\\ -Files"
+      ],
+      "examples_en": [
+        "dsize",
+        "dsize C:\\Users\\me -Top 25",
+        "dsize D:\\ -Files"
+      ]
     },
     {
       "name": "ping-mon",
       "category": "Réseau",
       "admin": "non",
-      "description": "Latence multi-hôtes : gigue, pertes, historique"
+      "description": "Latence multi-hôtes : gigue, pertes, historique",
+      "description_en": "Multi-host latency: jitter, loss, history",
+      "examples": [
+        "ping-mon",
+        "ping-mon github.com 192.168.1.1"
+      ]
     },
     {
       "name": "netinfo",
       "category": "Réseau",
       "admin": "non",
-      "description": "Interfaces, adresses, DNS, Wi-Fi et IP publique"
+      "description": "Interfaces, adresses, DNS, Wi-Fi et IP publique",
+      "description_en": "Interfaces, addresses, DNS, Wi-Fi and public IP",
+      "examples": [
+        "netinfo",
+        "netinfo -Offline"
+      ]
     },
     {
       "name": "ports",
       "category": "Réseau",
       "admin": "optionnel",
-      "description": "Ports en écoute et processus associés (ss -ltnp)"
+      "description": "Ports en écoute et processus associés (ss -ltnp)",
+      "description_en": "Listening ports and their processes (ss -ltnp)",
+      "examples": [
+        "ports",
+        "ports 3000",
+        "ports -Kill 8080"
+      ]
     },
     {
       "name": "remind",
-      "category": "Productivité",
+      "category": "Au quotidien",
       "admin": "non",
-      "description": "Rappels avec notifications Windows"
+      "description": "Rappels avec notifications Windows",
+      "description_en": "Reminders with Windows notifications",
+      "examples": [
+        "remind add \"Appeler le dentiste\" -At \"demain 9:00\"",
+        "remind add \"Sortir le linge\" -In 40m",
+        "remind list"
+      ],
+      "examples_en": [
+        "remind add \"Call the dentist\" -At \"tomorrow 9:00\"",
+        "remind add \"Take the laundry out\" -In 40m",
+        "remind list"
+      ]
+    },
+    {
+      "name": "tidy",
+      "category": "Fichiers",
+      "admin": "non",
+      "description": "Range un dossier en vrac par type ou par mois, avec annulation",
+      "description_en": "Sorts a messy folder by type or month, with undo",
+      "examples": [
+        "tidy -DryRun",
+        "tidy",
+        "tidy -By Date",
+        "tidy -Undo"
+      ]
+    },
+    {
+      "name": "dupes",
+      "category": "Fichiers",
+      "admin": "non",
+      "description": "Trouve les fichiers en double et libère l'espace perdu",
+      "description_en": "Finds duplicate files and reclaims wasted space",
+      "examples": [
+        "dupes ~\\Pictures",
+        "dupes D:\\ -Min 10MB -DryRun",
+        "dupes . -Include *.jpg,*.png"
+      ],
+      "examples_en": [
+        "dupes ~\\Pictures",
+        "dupes D:\\ -Min 10MB -DryRun",
+        "dupes . -Include *.jpg,*.png"
+      ]
+    },
+    {
+      "name": "awake",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Empêche la mise en veille du PC (et de l'écran)",
+      "description_en": "Keeps the PC (and display) awake",
+      "examples": [
+        "awake 2h",
+        "awake -Until 18:30 -Display",
+        "awake"
+      ]
+    },
+    {
+      "name": "todo",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Liste de tâches : échéances, priorités, étiquettes",
+      "description_en": "To-do list: due dates, priorities, tags",
+      "examples": [
+        "todo add \"Acheter du pain\" -Due demain",
+        "todo add \"Rapport mensuel !!\" -Due vendredi +travail",
+        "todo",
+        "todo done 1"
+      ],
+      "examples_en": [
+        "todo add \"Buy bread\" -Due tomorrow",
+        "todo add \"Monthly report !!\" -Due friday +work",
+        "todo",
+        "todo done 1"
+      ]
+    },
+    {
+      "name": "note",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Notes rapides et journal, un fichier Markdown par jour",
+      "description_en": "Quick notes and journal, one Markdown file per day",
+      "examples": [
+        "note \"Idée : comparer les assurances\"",
+        "note",
+        "note -Search assurance",
+        "Get-Clipboard | note"
+      ],
+      "examples_en": [
+        "note \"Idea: compare insurance quotes\"",
+        "note",
+        "note -Search insurance",
+        "Get-Clipboard | note"
+      ]
+    },
+    {
+      "name": "timer",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Minuteur, chronomètre et Pomodoro avec alerte",
+      "description_en": "Timer, stopwatch and Pomodoro with alert",
+      "examples": [
+        "timer 25m -Label \"Thé\"",
+        "timer -Pomodoro",
+        "timer -Stopwatch"
+      ],
+      "examples_en": [
+        "timer 25m -Label \"Tea\"",
+        "timer -Pomodoro",
+        "timer -Stopwatch"
+      ]
+    },
+    {
+      "name": "gitignore",
+      "category": "Code",
+      "admin": "non",
+      "description": "Génère et complète le .gitignore (modèles toptal), sans doublon",
+      "description_en": "Generates and merges .gitignore files (toptal templates), no dupes",
+      "examples": [
+        "gitignore",
+        "gitignore node,visualstudio -Write",
+        "gitignore -List py"
+      ]
+    },
+    {
+      "name": "cheat",
+      "category": "Code",
+      "admin": "non",
+      "description": "Exemples prêts à copier d'une commande (tldr, cheat.sh), hors ligne",
+      "description_en": "Ready-to-copy command examples (tldr, cheat.sh), works offline",
+      "examples": [
+        "cheat tar",
+        "cheat git rebase",
+        "cheat robocopy",
+        "cheat -Search archive"
+      ]
+    },
+    {
+      "name": "paths",
+      "category": "Système",
+      "admin": "optionnel",
+      "description": "Inspecte et répare le PATH : portée, doublons, dossiers disparus",
+      "description_en": "Inspects and fixes the PATH: scope, duplicates, missing folders",
+      "examples": [
+        "paths",
+        "paths which python",
+        "paths clean -DryRun",
+        "paths add C:\\Tools\\bin"
+      ]
+    },
+    {
+      "name": "weather",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Météo actuelle et prévisions à trois jours, ville mémorisée",
+      "description_en": "Current weather and 3-day forecast, remembered city",
+      "examples": [
+        "weather",
+        "weather Lyon",
+        "weather -Set Bordeaux"
+      ],
+      "examples_en": [
+        "weather",
+        "weather London",
+        "weather -Set Boston"
+      ]
+    },
+    {
+      "name": "math",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Calculatrice, pourcentages, conversions d'unités et de devises",
+      "description_en": "Calculator, percentages, unit and currency conversions",
+      "examples": [
+        "math \"(12,5 + 7) * 3\"",
+        "math \"15% de 80\"",
+        "math \"10 km en mi\"",
+        "math \"100 EUR en USD\""
+      ],
+      "examples_en": [
+        "math \"(12.5 + 7) * 3\"",
+        "math \"15% of 80\"",
+        "math \"10 km to mi\"",
+        "math \"100 EUR to USD\""
+      ]
+    },
+    {
+      "name": "speed",
+      "category": "Réseau",
+      "admin": "non",
+      "description": "Test de débit : latence, téléchargement, envoi, verdict clair",
+      "description_en": "Speed test: latency, download, upload, plain verdict",
+      "examples": [
+        "speed",
+        "speed -NoUpload",
+        "speed -Json"
+      ]
     }
   ]
 }

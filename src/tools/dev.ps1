@@ -21,23 +21,24 @@ param(
 
 $piped = @($input)
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'dev'
 $g = $script:Pst.Glyph
 
 if ($Help -or -not $Command -or (Test-PstHelpArg (@($Command, $Value) + @($Rest)))) {
-    Show-PstHelp -Name 'dev' -Synopsis 'Les petits outils du quotidien, sans ouvrir un site web.' `
-        -Usage @('dev <outil> [valeur] [options]') `
+    Show-PstHelp -Name 'dev' -Synopsis (L 'Les petits outils du quotidien, sans ouvrir un site web.') `
+        -Usage @((L 'dev <outil> [valeur] [options]')) `
         -Options @(
-            @('uuid [-Count n]', 'Identifiants uniques (GUID)'),
-            @('pass [-Length n] [-Count n]', 'Mots de passe aléatoires robustes'),
-            @('hash <fichier|texte> [-Algo]', 'Empreinte SHA256 (ou MD5, SHA1, SHA384, SHA512)'),
-            @('b64 <texte> [-Decode]', 'Encodage / décodage Base64'),
-            @('url <texte> [-Decode]', 'Encodage / décodage d''URL'),
-            @('json <fichier>', 'Valide et met en forme du JSON (accepte aussi le pipeline)'),
-            @('jwt <jeton>', 'Décode un jeton JWT (sans vérifier la signature)'),
-            @('epoch [valeur]', 'Horodatage Unix <-> date lisible'),
-            @('-Copy', 'Copie le résultat dans le presse-papiers')
+            @('uuid [-Count n]', (L 'Identifiants uniques (GUID)')),
+            @('pass [-Length n] [-Count n]', (L 'Mots de passe aléatoires robustes')),
+            @((L 'hash <fichier|texte> [-Algo]'), (L 'Empreinte SHA256 (ou MD5, SHA1, SHA384, SHA512)')),
+            @((L 'b64 <texte> [-Decode]'), (L 'Encodage / décodage Base64')),
+            @((L 'url <texte> [-Decode]'), (L 'Encodage / décodage d''URL')),
+            @((L 'json <fichier>'), (L 'Valide et met en forme du JSON (accepte aussi le pipeline)')),
+            @((L 'jwt <jeton>'), (L 'Décode un jeton JWT (sans vérifier la signature)')),
+            @((L 'epoch [valeur]'), (L 'Horodatage Unix <-> date lisible')),
+            @('-Copy', (L 'Copie le résultat dans le presse-papiers'))
         ) `
-        -Examples @('dev uuid', 'dev pass -Length 32 -Copy', 'dev hash .\setup.exe', 'dev b64 "bonjour"', 'dev epoch 1767225600', 'Get-Content data.json | dev json')
+        -Examples @('dev uuid', 'dev pass -Length 32 -Copy', 'dev hash .\setup.exe', (L 'dev b64 "bonjour"'), 'dev epoch 1767225600', 'Get-Content data.json | dev json')
     if ($Help -or $Command) { exit 0 } else { exit 1 }
 }
 
@@ -48,8 +49,8 @@ function Write-Result {
     param([string[]]$Lines)
     $Lines | ForEach-Object { Write-Output $_ }
     if ($Copy) {
-        try { Set-Clipboard -Value ($Lines -join "`r`n"); Write-Host (Paint "  $($g.Ok) copié dans le presse-papiers" 'Dim') }
-        catch { Write-Host (Paint "  $($g.Warn) presse-papiers indisponible" 'Warn') }
+        try { Set-Clipboard -Value ($Lines -join "`r`n"); Write-Host (Paint ("  $($g.Ok) " + (L 'copié dans le presse-papiers')) 'Dim') }
+        catch { Write-Host (Paint ("  $($g.Warn) " + (L 'presse-papiers indisponible')) 'Warn') }
     }
 }
 
@@ -108,7 +109,7 @@ switch -Regex ($Command.ToLower()) {
         break
     }
     '^(pass|password|pwd)$' {
-        if ($Length -lt 8 -or $Length -gt 256) { Stop-Usage 'La longueur doit être comprise entre 8 et 256.' }
+        if ($Length -lt 8 -or $Length -gt 256) { Stop-Usage (L 'La longueur doit être comprise entre 8 et 256.') }
         # Générateur cryptographique ; caractères ambigus (0/O, 1/l/I) écartés.
         $sets = @('abcdefghijkmnopqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!@#$%&*-_=+?')
         $all = ($sets -join '')
@@ -137,7 +138,7 @@ switch -Regex ($Command.ToLower()) {
         break
     }
     '^hash$' {
-        if (-not $Value) { Stop-Usage 'Indiquez un fichier ou un texte : dev hash <fichier|texte>' }
+        if (-not $Value) { Stop-Usage (L 'Indiquez un fichier ou un texte : dev hash <fichier|texte>') }
         $hasher = [Security.Cryptography.HashAlgorithm]::Create($Algo)
         try {
             if (Test-Path -LiteralPath $Value -PathType Leaf) {
@@ -151,38 +152,38 @@ switch -Regex ($Command.ToLower()) {
         break
     }
     '^(b64|base64)$' {
-        if (-not $Value) { Stop-Usage 'Indiquez un texte : dev b64 <texte> [-Decode]' }
+        if (-not $Value) { Stop-Usage (L 'Indiquez un texte : dev b64 <texte> [-Decode]') }
         try {
             if ($Decode) { Write-Result @([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value.Trim()))) }
             else { Write-Result @([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Value))) }
         }
-        catch { Stop-Usage 'Ce texte n''est pas du Base64 valide.' }
+        catch { Stop-Usage (L 'Ce texte n''est pas du Base64 valide.') }
         break
     }
     '^url$' {
-        if (-not $Value) { Stop-Usage 'Indiquez un texte : dev url <texte> [-Decode]' }
+        if (-not $Value) { Stop-Usage (L 'Indiquez un texte : dev url <texte> [-Decode]') }
         if ($Decode) { Write-Result @([Uri]::UnescapeDataString($Value.Replace('+', ' '))) }
         else { Write-Result @([Uri]::EscapeDataString($Value)) }
         break
     }
     '^json$' {
-        if (-not $Value) { Stop-Usage 'Indiquez un fichier ou passez le JSON par le pipeline : dev json <fichier>' }
+        if (-not $Value) { Stop-Usage (L 'Indiquez un fichier ou passez le JSON par le pipeline : dev json <fichier>') }
         $text = $Value
         if ($Value.Length -lt 260 -and (Test-Path -LiteralPath $Value -PathType Leaf)) { $text = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $Value).ProviderPath) }
         try { $pretty = Format-Json $text }
-        catch { Stop-Usage "JSON invalide : $($_.Exception.Message)" }
+        catch { Stop-Usage (L 'JSON invalide : {0}' $_.Exception.Message) }
         Write-Host $pretty
         if ($Copy) { try { Set-Clipboard -Value ($pretty -replace "$([char]27)\[[0-9;]*m", '') } catch { $null = $_ } }
         break
     }
     '^jwt$' {
-        if (-not $Value) { Stop-Usage 'Indiquez un jeton : dev jwt <jeton>' }
+        if (-not $Value) { Stop-Usage (L 'Indiquez un jeton : dev jwt <jeton>') }
         $parts = $Value.Trim() -split '\.'
-        if ($parts.Count -lt 2) { Stop-Usage 'Ce texte ne ressemble pas à un jeton JWT (en-tête.contenu.signature).' }
+        if ($parts.Count -lt 2) { Stop-Usage (L 'Ce texte ne ressemble pas à un jeton JWT (en-tête.contenu.signature).') }
         try { $header = ConvertFrom-Base64Url $parts[0]; $payload = ConvertFrom-Base64Url $parts[1] }
-        catch { Stop-Usage 'Jeton JWT illisible.' }
-        Write-Host (Paint '  En-tête' 'Accent' -Bold); Write-Host (Format-Json $header)
-        Write-Host (Paint '  Contenu' 'Accent' -Bold); Write-Host (Format-Json $payload)
+        catch { Stop-Usage (L 'Jeton JWT illisible.') }
+        Write-Host (Paint (L '  En-tête') 'Accent' -Bold); Write-Host (Format-Json $header)
+        Write-Host (Paint (L '  Contenu') 'Accent' -Bold); Write-Host (Format-Json $payload)
         try {
             $claims = $payload | ConvertFrom-Json
             foreach ($claim in 'iat', 'nbf', 'exp') {
@@ -190,14 +191,14 @@ switch -Regex ($Command.ToLower()) {
                 $when = [DateTimeOffset]::FromUnixTimeSeconds([long]$claims.$claim).LocalDateTime
                 $note = ''
                 if ($claim -eq 'exp') {
-                    if ($when -lt (Get-Date)) { $note = Paint "  expiré depuis $(Format-PstDuration ((Get-Date) - $when))" 'Err' }
-                    else { $note = Paint "  valide encore $(Format-PstDuration ($when - (Get-Date)))" 'Ok' }
+                    if ($when -lt (Get-Date)) { $note = Paint (L '  expiré depuis {0}' (Format-PstDuration ((Get-Date) - $when))) 'Err' }
+                    else { $note = Paint (L '  valide encore {0}' (Format-PstDuration ($when - (Get-Date)))) 'Ok' }
                 }
-                Write-Host ('  ' + (Paint (Format-PstPad $claim 5) 'Dim') + $when.ToString('dd/MM/yyyy HH:mm:ss') + $note)
+                Write-Host ('  ' + (Paint (Format-PstPad $claim 5) 'Dim') + $when.ToString((L 'dd/MM/yyyy HH:mm:ss'), (Get-PstCulture)) + $note)
             }
         }
         catch { $null = $_ }
-        Write-Host (Paint "  $($g.Warn) signature non vérifiée : ne faites pas confiance à ce contenu sans validation." 'Dim')
+        Write-Host (Paint ("  $($g.Warn) " + (L 'signature non vérifiée : ne faites pas confiance à ce contenu sans validation.')) 'Dim')
         break
     }
     '^(epoch|time|date)$' {
@@ -208,14 +209,14 @@ switch -Regex ($Command.ToLower()) {
         if ($Value -match '^\d{9,13}$') {
             $n = [long]$Value
             if ($Value.Length -gt 10) { $moment = [DateTimeOffset]::FromUnixTimeMilliseconds($n) } else { $moment = [DateTimeOffset]::FromUnixTimeSeconds($n) }
-            Write-Host ('  ' + (Paint (Format-PstPad 'Local' 7) 'Accent') + $moment.LocalDateTime.ToString('dddd d MMMM yyyy HH:mm:ss'))
+            Write-Host ('  ' + (Paint (Format-PstPad 'Local' 7) 'Accent') + $moment.LocalDateTime.ToString((L 'dddd d MMMM yyyy HH:mm:ss'), (Get-PstCulture)))
             Write-Host ('  ' + (Paint (Format-PstPad 'UTC' 7) 'Accent') + $moment.UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ'))
             break
         }
         $parsed = [DateTime]::MinValue
         if ([DateTime]::TryParse($Value, [ref]$parsed)) { Write-Result @([string]([DateTimeOffset]$parsed).ToUnixTimeSeconds()) }
-        else { Stop-Usage "Valeur non reconnue : « $Value » (horodatage Unix ou date)." }
+        else { Stop-Usage (L 'Valeur non reconnue : « {0} » (horodatage Unix ou date).' $Value) }
         break
     }
-    default { Stop-Usage "Outil inconnu : « $Command » $($g.Dot) voir « dev -Help »" }
+    default { Stop-Usage (L 'Outil inconnu : « {0} » {1} voir « dev -Help »' $Command $g.Dot) }
 }

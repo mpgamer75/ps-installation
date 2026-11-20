@@ -14,18 +14,19 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'ping-mon'
 
 if ($Help -or (Test-PstHelpArg $Hosts)) {
-    Show-PstHelp -Name 'ping-mon' -Synopsis 'Surveille la latence de plusieurs hôtes en même temps.' `
-        -Usage @('ping-mon [hôtes...] [-Interval <s>] [-Count <n>] [-Timeout <ms>]') `
+    Show-PstHelp -Name 'ping-mon' -Synopsis (L 'Surveille la latence de plusieurs hôtes en même temps.') `
+        -Usage @((L 'ping-mon [hôtes...] [-Interval <s>] [-Count <n>] [-Timeout <ms>]')) `
         -Options @(
-            @('hôtes', 'Noms ou adresses IP (défaut : passerelle, 1.1.1.1, 8.8.8.8, google.com)'),
-            @('-Interval <s>', 'Délai entre deux séries de pings (défaut : 1)'),
-            @('-Count <n>', 'Nombre de séries puis bilan (défaut : 0 = illimité)'),
-            @('-Timeout <ms>', 'Délai d''attente d''une réponse (défaut : 1500)')
+            @((L 'hôtes'), (L 'Noms ou adresses IP (défaut : passerelle, 1.1.1.1, 8.8.8.8, google.com)')),
+            @('-Interval <s>', (L 'Délai entre deux séries de pings (défaut : 1)')),
+            @('-Count <n>', (L 'Nombre de séries puis bilan (défaut : 0 = illimité)')),
+            @('-Timeout <ms>', (L 'Délai d''attente d''une réponse (défaut : 1500)'))
         ) `
         -Examples @('ping-mon', 'ping-mon github.com 192.168.1.1', 'ping-mon 1.1.1.1 -Count 20') `
-        -Notes @('Touches : Q quitter · R remettre les statistiques à zéro')
+        -Notes @((L 'Touches : Q quitter · R remettre les statistiques à zéro'))
     exit 0
 }
 
@@ -55,7 +56,7 @@ if ($Hosts) {
 }
 if ($targets.Count -eq 0) {
     $gw = Get-DefaultGateway
-    if ($gw) { $targets += New-Target $gw 'Passerelle' }
+    if ($gw) { $targets += New-Target $gw (L 'Passerelle') }
     $targets += New-Target '1.1.1.1' 'Cloudflare DNS'
     $targets += New-Target '8.8.8.8' 'Google DNS'
     $targets += New-Target 'google.com' 'google.com'
@@ -76,7 +77,7 @@ function Invoke-PingRound {
         $ms = $null
         $t.Error = ''
         try {
-            if ($null -eq $j.Task) { throw 'envoi impossible' }
+            if ($null -eq $j.Task) { throw (L 'envoi impossible') }
             $reply = $j.Task.GetAwaiter().GetResult()
             if ($reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) { $ms = [double]$reply.RoundtripTime }
             else { $t.Error = [string]$reply.Status }
@@ -134,7 +135,7 @@ function Get-Frame {
 
         if ($null -ne $t.Last) { $state = (Paint $g.Info 'Ok') ; $last = Paint (Format-Ms $t.Last) (Get-LatencyColor $t.Last) -Bold }
         elseif ($t.Sent -eq 0) { $state = Paint $g.Info 'Dim'; $last = Paint '...' 'Dim' }
-        else { $state = Paint $g.Err 'Err'; $last = Paint 'perdu' 'Err' -Bold }
+        else { $state = Paint $g.Err 'Err'; $last = Paint (L 'perdu') 'Err' -Bold }
 
         $name = $t.Label
         if ($t.Label -ne $t.Address) { $name = "$($t.Label) ($($t.Address))" }
@@ -147,15 +148,15 @@ function Get-Frame {
         )
     }
     $table = Format-PstTable -Columns @(
-        @{ Name = '  Hôte'; Width = 30 }, @{ Name = 'Dernier'; Width = 8; Right = $true },
-        @{ Name = 'Min'; Width = 7; Right = $true }, @{ Name = 'Moy'; Width = 7; Right = $true },
-        @{ Name = 'Max'; Width = 7; Right = $true }, @{ Name = 'Gigue'; Width = 8; Right = $true },
-        @{ Name = 'Pertes'; Width = 7; Right = $true }, @{ Name = 'Historique'; Width = $sparkW }
+        @{ Name = '  ' + (L 'Hôte'); Width = 30 }, @{ Name = (L 'Dernier'); Width = 8; Right = $true },
+        @{ Name = 'Min'; Width = 7; Right = $true }, @{ Name = (L 'Moy'); Width = 7; Right = $true },
+        @{ Name = 'Max'; Width = 7; Right = $true }, @{ Name = (L 'Gigue'); Width = 8; Right = $true },
+        @{ Name = (L 'Pertes'); Width = 7; Right = $true }, @{ Name = (L 'Historique'); Width = $sparkW }
     ) -Rows $rows
 
     $lines = @()
-    $sub = "$($targets.Count) hôte(s) $($g.Dot) toutes les ${Interval}s"
-    if ($Summary) { $sub = 'bilan' }
+    $sub = L '{0} hôte(s) {1} toutes les {2}s' $targets.Count $g.Dot $Interval
+    if ($Summary) { $sub = L 'bilan' }
     $lines += ' ' + (Get-PstHeaderLine -Tool 'ping-mon' -Subtitle $sub -Width ($width - 1))
     $lines += ''
     foreach ($l in $table) { $lines += ' ' + $l }
@@ -166,7 +167,7 @@ function Get-Frame {
     }
     if (-not $Summary) {
         $lines += ''
-        $lines += ' ' + (Paint "Q quitter $($g.Dot) R remise à zéro $($g.Dot) série n° $($targets[0].Sent)" 'Dim')
+        $lines += ' ' + (Paint (L 'Q quitter {0} R remise à zéro {0} série n° {1}' $g.Dot $targets[0].Sent) 'Dim')
     }
     return $lines
 }

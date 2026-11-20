@@ -13,11 +13,12 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
+Import-PstStrings 'sysinfo'
 
 if ($Help -or (Test-PstHelpArg $Rest)) {
-    Show-PstHelp -Name 'sysinfo' -Synopsis 'Résumé matériel et logiciel de la machine.' `
+    Show-PstHelp -Name 'sysinfo' -Synopsis (L 'Résumé matériel et logiciel de la machine.') `
         -Usage @('sysinfo [-Json] [-NoLogo]') `
-        -Options @(@('-Json', 'Sortie JSON, pour les scripts'), @('-NoLogo', 'Masque le logo')) `
+        -Options @(@('-Json', (L 'Sortie JSON, pour les scripts')), @('-NoLogo', (L 'Masque le logo'))) `
         -Examples @('sysinfo', 'sysinfo -Json | ConvertFrom-Json')
     exit 0
 }
@@ -73,7 +74,7 @@ if ($os) {
     $data.MemoryUsed = $data.MemoryTotal - ([double]$os.FreePhysicalMemory * 1KB)
 }
 if ($cs) { $data.Model = ("$($cs.Manufacturer) $($cs.Model)" -replace '\s+', ' ').Trim() }
-if ($cpu) { $data.CPU = (("$($cpu.Name)" -replace '\s+', ' ').Trim() + " ($($cpu.NumberOfCores) cœurs / $($cpu.NumberOfLogicalProcessors) threads)") }
+if ($cpu) { $data.CPU = (("$($cpu.Name)" -replace '\s+', ' ').Trim() + ' ' + (L '({0} cœurs / {1} threads)' $cpu.NumberOfCores $cpu.NumberOfLogicalProcessors)) }
 $data.GPU = @($gpus | Where-Object { $_.Name } | ForEach-Object { $_.Name })
 $screen = $gpus | Where-Object { $_.CurrentHorizontalResolution } | Select-Object -First 1
 if ($screen) { $data.Resolution = "$($screen.CurrentHorizontalResolution) x $($screen.CurrentVerticalResolution) @ $($screen.CurrentRefreshRate) Hz" }
@@ -88,7 +89,7 @@ if ($battery) {
 }
 if ($env:WT_SESSION) { $data.Terminal = 'Windows Terminal' }
 elseif ($env:TERM_PROGRAM) { $data.Terminal = $env:TERM_PROGRAM }
-else { $data.Terminal = 'Console Windows' }
+else { $data.Terminal = L 'Console Windows' }
 try {
     $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
         Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.AddressState -eq 'Preferred' } |
@@ -115,31 +116,31 @@ $info = @()
 $title = "$($data.User)@$($data.Host)"
 $info += Format-PstGradient $title -Bold
 $info += Paint ($g.H * $title.Length) 'Dim'
-$info += Row 'Système' $data.OS
-$info += Row 'Version' $data.Build
+$info += Row (L 'Système') $data.OS
+$info += Row (L 'Version') $data.Build
 $info += Row 'Machine' $data.Model
-$info += Row 'Démarré' ("depuis " + $data.Uptime)
+$info += Row (L 'Démarré') (L 'depuis {0}' $data.Uptime)
 $info += Row 'Shell' $data.Shell
 $info += Row 'Terminal' $data.Terminal
-$info += Row 'Écran' $data.Resolution
+$info += Row (L 'Écran') $data.Resolution
 $info += Row 'CPU' $data.CPU
 foreach ($name in $data.GPU) { $info += Row 'GPU' $name }
 if ($data.MemoryTotal -gt 0) {
     $pct = $data.MemoryUsed / $data.MemoryTotal * 100
-    $info += Row 'Mémoire' ((Format-PstBar $pct 14) + " $(Format-PstSize $data.MemoryUsed) / $(Format-PstSize $data.MemoryTotal)")
+    $info += Row (L 'Mémoire') ((Format-PstBar $pct 14) + " $(Format-PstSize $data.MemoryUsed) / $(Format-PstSize $data.MemoryTotal)")
 }
 foreach ($d in $data.Disks) {
     $pct = ($d.Total - $d.Free) / $d.Total * 100
-    $info += Row "Disque $($d.Name)" ((Format-PstBar $pct 14 -Color (Get-PstLevelColor $pct 80 92)) + " $(Format-PstSize ($d.Total - $d.Free)) / $(Format-PstSize $d.Total)")
+    $info += Row (L 'Disque {0}' $d.Name) ((Format-PstBar $pct 14 -Color (Get-PstLevelColor $pct 80 92)) + " $(Format-PstSize ($d.Total - $d.Free)) / $(Format-PstSize $d.Total)")
 }
 if ($data.Battery) {
-    $state = 'sur batterie'
-    if ($data.Battery.Charging) { $state = 'sur secteur' }
-    $info += Row 'Batterie' "$($data.Battery.Percent) % ($state)"
+    $state = L 'sur batterie'
+    if ($data.Battery.Charging) { $state = L 'sur secteur' }
+    $info += Row (L 'Batterie') (L '{0} % ({1})' $data.Battery.Percent $state)
 }
-$info += Row 'IP locale' $data.LocalIP
-$session = 'utilisateur standard'
-if ($data.Admin) { $session = 'administrateur' }
+$info += Row (L 'IP locale') $data.LocalIP
+$session = L 'utilisateur standard'
+if ($data.Admin) { $session = L 'administrateur' }
 $info += Row 'Session' $session
 $info += ''
 $swatch = ''
