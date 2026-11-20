@@ -43,10 +43,10 @@ if ($Help -or (Test-PstHelpArg (@($Text) + @($Rest)))) {
             @('-Json', (L 'Sortie JSON (pour scripts ou « ask »)'))
         ) `
         -Examples @(
-            'note "Appeler le plombier pour le devis"',
-            'note -Search plombier',
+            (L 'note "Appeler le plombier pour le devis"'),
+            (L 'note -Search plombier'),
             'Get-Clipboard | note',
-            'note -Days 7 -Json | ask "Résume ma semaine"'
+            (L 'note -Days 7 -Json | ask "Résume ma semaine"')
         ) `
         -Notes @(
             (L 'Éditeur : $env:EDITOR, sinon VS Code (code), sinon le Bloc-notes sous Windows.'),

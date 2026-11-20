@@ -237,6 +237,43 @@
         "remind add \"Sortir le linge\" -In 40m",
         "remind list"
       ]
+    },
+    {
+      "name": "tidy",
+      "category": "Fichiers",
+      "admin": "non",
+      "description": "Range un dossier en vrac par type ou par mois, avec annulation",
+      "description_en": "Sorts a messy folder by type or month, with undo",
+      "examples": [
+        "tidy -DryRun",
+        "tidy",
+        "tidy -By Date",
+        "tidy -Undo"
+      ]
+    },
+    {
+      "name": "dupes",
+      "category": "Fichiers",
+      "admin": "non",
+      "description": "Trouve les fichiers en double et libère l'espace perdu",
+      "description_en": "Finds duplicate files and reclaims wasted space",
+      "examples": [
+        "dupes ~\\Pictures",
+        "dupes D:\\ -Min 10MB -DryRun",
+        "dupes . -Include *.jpg,*.png"
+      ]
+    },
+    {
+      "name": "awake",
+      "category": "Au quotidien",
+      "admin": "non",
+      "description": "Empêche la mise en veille du PC (et de l'écran)",
+      "description_en": "Keeps the PC (and display) awake",
+      "examples": [
+        "awake 2h",
+        "awake -Until 18:30 -Display",
+        "awake"
+      ]
     }
   ]
 }

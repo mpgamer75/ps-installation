@@ -208,6 +208,8 @@ Describe 'Installation' {
             (Join-Path (Join-Path (Join-Path $Dest 'app') 'tools') "$($tool.name).ps1") | Should -Exist
         }
         foreach ($lib in 'PsTools.ps1', 'PsTools.AI.ps1', 'PsTools.Wizard.ps1') { (Join-Path (Join-Path (Join-Path $Dest 'app') 'lib') $lib) | Should -Exist }
+        (Join-Path $Dest 'app/i18n/en/PsTools.psd1') | Should -Exist
+        (Join-Path $Dest 'app/i18n/en/ask.psd1') | Should -Exist
         $info = Get-Content (Join-Path (Join-Path $Dest 'app') 'install.json') -Raw | ConvertFrom-Json
         $info.Version | Should -Be $Manifest.version
     }
@@ -218,6 +220,12 @@ Describe 'Installation' {
         $shim = Get-Content (Join-Path (Join-Path $Dest 'bin') 'monitor.cmd') -Raw
         $shim | Should -Match '%~dp0\.\.\\app\\tools\\monitor\.ps1'
         $shim | Should -Match '-ExecutionPolicy Bypass'
+    }
+
+    It 'la copie installée parle anglais' {
+        $env:PSTOOLS_LANG = 'en'
+        try { $out = $null | & $Shell -NoProfile -File (Join-Path $Dest 'app/tools/pst-uninstall.ps1') -Help 2>&1 } finally { $env:PSTOOLS_LANG = 'fr' }
+        (@($out) -join "`n") | Should -Match 'USAGE'
     }
 
     It 'la copie installée fonctionne' {

@@ -45,12 +45,12 @@ if ($Help -or (Test-PstHelpArg (@($Command) + @($Rest)))) {
             @('-Yes', (L 'Supprime sans demander de confirmation'))
         ) `
         -Examples @(
-            'todo add "Acheter du pain +courses" -Due demain',
-            'todo add "Payer le loyer !!" -Due 1/12',
+            (L 'todo add "Acheter du pain +courses" -Due demain'),
+            (L 'todo add "Payer le loyer !!" -Due 1/12'),
             'todo done 2',
-            'todo edit 3 "Appeler le garage" -Due lundi',
-            'todo list -Tag courses',
-            'todo -Json | ask "Que dois-je faire en priorité ?"'
+            (L 'todo edit 3 "Appeler le garage" -Due lundi'),
+            (L 'todo list -Tag courses'),
+            (L 'todo -Json | ask "Que dois-je faire en priorité ?"')
         ) `
         -Notes @(
             (L 'Les numéros sont ceux affichés par « todo » ; « todo list -All » numérote aussi les tâches faites.'),

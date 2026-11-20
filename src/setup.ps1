@@ -401,6 +401,13 @@ function Invoke-Install {
             Write-ScriptFile -File $destination -Text (Get-SourceText $c.source)
         }
         [IO.File]::WriteAllText((Join-Path $app 'manifest.json'), (Get-SourceText 'manifest.json'), (New-Object System.Text.UTF8Encoding $false))
+        # Dictionnaires anglais : toujours installés, pour pouvoir changer de langue à tout moment.
+        $dictionaries = @('PsTools', 'PsTools.AI', 'PsTools.Wizard', 'setup') + @($selected | ForEach-Object { $_.name })
+        foreach ($name in $dictionaries) {
+            $text = $null
+            try { $text = Get-SourceText "src/i18n/en/$name.psd1" } catch { $text = $null }
+            if ($text) { Write-ScriptFile -File (Join-Path (Join-Path (Join-Path $app 'i18n') 'en') "$name.psd1") -Text $text }
+        }
         Write-PstStatus ok (L 'Bibliothèque commune')
 
         $nameWidth = 0

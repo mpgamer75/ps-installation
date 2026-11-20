@@ -34,18 +34,18 @@ if ($Help -or (Test-PstHelpArg (@($Duration) + @($Rest)))) {
             (L 'timer -Pomodoro [options]          cycles travail / pause')
         ) `
         -Options @(
-            @('-Label <texte>', (L 'Nom affiché et rappelé dans la notification')),
+            @((L '-Label <texte>'), (L 'Nom affiché et rappelé dans la notification')),
             @('-Rounds <n>', (L 'Pomodoro : nombre de séances de travail (4 par défaut)')),
-            @('-Work <durée>', (L 'Pomodoro : durée d''une séance (25m)')),
-            @('-Break <durée>', (L 'Pomodoro : petite pause (5m)')),
-            @('-LongBreak <durée>', (L 'Pomodoro : longue pause toutes les 4 séances (15m)')),
+            @((L '-Work <durée>'), (L 'Pomodoro : durée d''une séance (25m)')),
+            @((L '-Break <durée>'), (L 'Pomodoro : petite pause (5m)')),
+            @((L '-LongBreak <durée>'), (L 'Pomodoro : longue pause toutes les 4 séances (15m)')),
             @('-Count <n>', (L 'Chronomètre hors session interactive : nombre de relevés')),
             @('-Quiet', (L 'Ni bip ni notification'))
         ) `
         -Examples @(
             'timer 25m',
-            'timer 4m -Label "Thé"',
-            'timer 1h30 -Label "Lessive"',
+            (L 'timer 4m -Label "Thé"'),
+            (L 'timer 1h30 -Label "Lessive"'),
             'timer -Stopwatch',
             'timer -Pomodoro -Rounds 3 -Work 50m -Break 10m'
         ) `
@@ -357,7 +357,7 @@ function Show-Laps {
             $rows += , @([string]$i, (Format-Clock ($t - $prev) -Tenths), (Format-Clock $t -Tenths))
             $prev = $t; $i++
         }
-        Format-PstTable -Columns @(@{ Name = (L 'Tour'); Width = 4; Right = $true }, @{ Name = (L 'Durée'); Width = 10; Right = $true }, @{ Name = (L 'Cumul'); Width = 10; Right = $true }) -Rows $rows |
+        Format-PstTable -Columns @(@{ Name = (L 'N°'); Width = 4; Right = $true }, @{ Name = (L 'Durée'); Width = 10; Right = $true }, @{ Name = (L 'Cumul'); Width = 10; Right = $true }) -Rows $rows |
             ForEach-Object { Write-Host "  $_" }
         Write-Host ''
     }
@@ -372,7 +372,7 @@ function Start-Stopwatch {
     $sw = [Diagnostics.Stopwatch]::StartNew()
 
     if (-not (Test-PstInteractive)) {
-        Show-PstHeader -Tool 'timer' -Subtitle (L 'chronomètre')
+        Show-PstHeader -Tool 'timer' -Subtitle (L 'chrono')
         Write-PstStatus step (Paint $title 'Title' -Bold)
         $n = [Math]::Max(1, $Count)
         for ($i = 1; $i -le $n; $i++) {
@@ -395,7 +395,7 @@ function Start-Stopwatch {
                 $width = Get-PstWidth
                 $color = 'Accent'
                 if (-not $sw.IsRunning) { $color = 'Warn' }
-                $lines = @('', (' ' + (Get-PstHeaderLine -Tool 'timer' -Subtitle (L 'chronomètre') -Width ($width - 1))), '', '')
+                $lines = @('', (' ' + (Get-PstHeaderLine -Tool 'timer' -Subtitle (L 'chrono') -Width ($width - 1))), '', '')
                 $lines += Get-Centered (Paint $title 'Title' -Bold) $width
                 $lines += ''
                 $lines += Get-CenteredBig $clock $width $color
@@ -431,7 +431,7 @@ function Start-Stopwatch {
     finally { Stop-PstScreen }
     $sw.Stop()
     Write-Host ''
-    Show-PstHeader -Tool 'timer' -Subtitle (L 'chronomètre')
+    Show-PstHeader -Tool 'timer' -Subtitle (L 'chrono')
     Show-Laps @($laps) $sw.Elapsed.TotalSeconds
     return 0
 }
