@@ -100,7 +100,7 @@ jobs:
           Assert-Run 'pst keys'       { cmd /c pst keys }                   'Alt\+A'
           $env:PSTOOLS_LANG = 'en'
           Assert-Run 'pst (anglais)'  { cmd /c pst }                        'EVERYDAY'
-          Assert-Run 'calc (anglais)' { cmd /c calc "2 * (3 + 4)" }         '14'
+          Assert-Run 'math (anglais)' { cmd /c math "2 * (3 + 4)" }         '14'
           Assert-Run 'todo (anglais)' { cmd /c todo add "Buy bread" -Due tomorrow } 'Buy bread'
           $env:PSTOOLS_LANG = 'fr'
           Assert-Run 'tidy (simulation)' { cmd /c tidy $env:TEMP -DryRun }  '.'

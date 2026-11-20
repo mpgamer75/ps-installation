@@ -47,7 +47,7 @@ A wizard walks you through it, and nothing changes before the final summary:
 `Esc` goes back one step. Everything can be changed later with `pst setup`.
 
 Without a user: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1))) -Yes`
-(also `-Scope AllUsers`, `-Tools todo,calc`, `-NoPath`, `-Shell` / `-NoShell`).
+(also `-Scope AllUsers`, `-Tools todo,math`, `-NoPath`, `-Shell` / `-NoShell`).
 
 ## The tools
 
@@ -62,7 +62,7 @@ tool's card and examples, and runs it with `Enter`. `/` filters, `s` opens setti
 | `timer` | Big-digit countdown, stopwatch, Pomodoro, alert | no |
 | `remind` | Reminders with Windows notifications, even with the terminal closed | no |
 | `weather` | Current weather and 3-day forecast | no |
-| `calc` | Calculator, percentages, units, currencies (works offline) | no |
+| `math` | Calculator, percentages, units, currencies (works offline) | no |
 | `awake` | Keeps the PC awake (presentation, long download) | no |
 | **AI** | | |
 | `ask` | AI assistant (Claude, GPT, Gemini, Mistral, Ollama…): tokens and cost shown | no |
@@ -101,14 +101,14 @@ bit more as administrator.
 todo add "Buy bread" -Due tomorrow
 note "Idea: compare insurance quotes"
 timer 25m -Label "Tea"
-calc "15% of 80"; calc "10 km to mi"; calc "100 EUR to USD"
+math "15% of 80"; math "10 km to mi"; math "100 EUR to USD"
 weather -Set London
 tidy -DryRun; tidy; tidy -Undo
 ask -Cmd "the 10 biggest files in this folder"
 Get-Content error.log -Tail 80 | ask "what happened?"
 ```
 
-Network access: `weather` uses wttr.in, `calc` (currencies only) frankfurter.dev, `speed`
+Network access: `weather` uses wttr.in, `math` (currencies only) frankfurter.dev, `speed`
 speed.cloudflare.com, `gitignore` toptal.com, `cheat` tldr pages on GitHub, `netinfo` api.ipify.org.
 None needs a key. `ask` sends your question to the AI provider you chose, with your own key.
 

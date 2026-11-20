@@ -121,8 +121,8 @@ Tapez simplement `pst` : le **tableau de bord** classe les outils par onglets (1
 | [`note`](#todo-note-timer) | Notes rapides et journal, un fichier Markdown par jour, recherche | — | non |
 | [`timer`](#todo-note-timer) | Minuteur à grands chiffres, chronomètre, Pomodoro, alerte | — | non |
 | [`remind`](#remind) | Rappels avec notification Windows, même terminal fermé | `at` | non |
-| [`weather`](#weather-calc-speed) | Météo actuelle et prévisions à trois jours | wttr.in | non |
-| [`calc`](#weather-calc-speed) | Calculatrice, pourcentages, unités, devises (hors ligne possible) | `bc`, `units` | non |
+| [`weather`](#weather-math-speed) | Météo actuelle et prévisions à trois jours | wttr.in | non |
+| [`math`](#weather-math-speed) | Calculatrice, pourcentages, unités, devises (hors ligne possible) | `bc`, `units` | non |
 | [`awake`](#tidy-dupes-awake) | Empêche la mise en veille (présentation, téléchargement) | `caffeinate` | non |
 | **IA** | | | |
 | [`ask`](#ask) | Assistant IA (Claude, GPT, Gemini, Mistral, Ollama…) : jetons et coût affichés | — | non |
@@ -146,7 +146,7 @@ Tapez simplement `pst` : le **tableau de bord** classe les outils par onglets (1
 | [`logtail`](#logtail) | Suit un journal en direct, couleurs par niveau, filtre | `tail -f` | non |
 | [`events`](#events) | Erreurs et avertissements récents de Windows, regroupés | `journalctl` | optionnels |
 | **Réseau** | | | |
-| [`speed`](#weather-calc-speed) | Test de débit avec verdict clair (« OK pour la visio HD ») | speedtest | non |
+| [`speed`](#weather-math-speed) | Test de débit avec verdict clair (« OK pour la visio HD ») | speedtest | non |
 | [`ping-mon`](#ping-mon) | Latence de plusieurs hôtes : gigue, pertes, historique | `mtr` | non |
 | [`netinfo`](#netinfo) | Interfaces, adresses, DNS, Wi-Fi, IP publique | `ip a` | non |
 | [`ports`](#ports) | Ports en écoute et processus associés | `ss -ltnp` | optionnels |
@@ -169,14 +169,14 @@ timer 25m -Label "Thé"                          # grands chiffres, Espace pause
 timer -Pomodoro
 ```
 
-### weather, calc, speed
+### weather, math, speed
 
 ```powershell
 weather                     # ville devinée, puis mémorisée avec : weather -Set Lyon
-calc "(12,5 + 7) * 3"       # virgule décimale acceptée ; « calc » seul ouvre une calculatrice interactive
-calc "15% de 80"
-calc "10 km en mi"
-calc "100 EUR en USD"       # taux BCE du jour, gardés en cache pour fonctionner hors ligne
+math "(12,5 + 7) * 3"       # virgule décimale acceptée ; « math » seul ouvre une calculatrice interactive
+math "15% de 80"
+math "10 km en mi"
+math "100 EUR en USD"       # taux BCE du jour, gardés en cache pour fonctionner hors ligne
 speed                       # latence, téléchargement, envoi, verdict en clair
 ```
 
@@ -201,7 +201,7 @@ paths which python          # quelle copie l'emporte
 paths clean -DryRun
 ```
 
-Réseau : `weather` interroge wttr.in, `calc` (devises seulement) frankfurter.dev, `speed`
+Réseau : `weather` interroge wttr.in, `math` (devises seulement) frankfurter.dev, `speed`
 speed.cloudflare.com, `gitignore` toptal.com et `cheat` les pages tldr (GitHub) ; aucun ne demande de clé.
 
 ### ask

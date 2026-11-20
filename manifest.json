@@ -407,22 +407,22 @@
       ]
     },
     {
-      "name": "calc",
+      "name": "math",
       "category": "Au quotidien",
       "admin": "non",
       "description": "Calculatrice, pourcentages, conversions d'unités et de devises",
       "description_en": "Calculator, percentages, unit and currency conversions",
       "examples": [
-        "calc \"(12,5 + 7) * 3\"",
-        "calc \"15% de 80\"",
-        "calc \"10 km en mi\"",
-        "calc \"100 EUR en USD\""
+        "math \"(12,5 + 7) * 3\"",
+        "math \"15% de 80\"",
+        "math \"10 km en mi\"",
+        "math \"100 EUR en USD\""
       ],
       "examples_en": [
-        "calc \"(12.5 + 7) * 3\"",
-        "calc \"15% of 80\"",
-        "calc \"10 km to mi\"",
-        "calc \"100 EUR to USD\""
+        "math \"(12.5 + 7) * 3\"",
+        "math \"15% of 80\"",
+        "math \"10 km to mi\"",
+        "math \"100 EUR to USD\""
       ]
     },
     {

@@ -18,7 +18,7 @@
 
 ### Au quotidien
 - **todo** (tâches, échéances en langage courant, priorités, étiquettes), **note** (journal Markdown),
-  **timer** (minuteur, chronomètre, Pomodoro), **weather**, **calc** (calculs, pourcentages, unités,
+  **timer** (minuteur, chronomètre, Pomodoro), **weather**, **math** (calculatrice ; nommée ainsi car `calc` lance la calculatrice de Windows — calculs, pourcentages, unités,
   devises hors ligne), **awake** (empêche la mise en veille).
 
 ### Fichiers, code, réseau

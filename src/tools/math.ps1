@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    calc — calculatrice et convertisseur du quotidien.
+    math — calculatrice et convertisseur du quotidien.
 .DESCRIPTION
     Calculs (+ - * / ^ %, parenthèses, sqrt, round, abs, min, max...), pourcentages
     (« 15% de 80 », « 80 + 20% »), conversions d'unités (« 10 km en mi ») et de
@@ -21,10 +21,10 @@ param(
 )
 
 . (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'lib') 'PsTools.ps1')
-Import-PstStrings 'calc'
+Import-PstStrings 'math'
 $piped = @($input | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
 
-# « calc 3,5 * 2 » sans guillemets : PowerShell transmet « 3,5 » comme un tableau.
+# « math 3,5 * 2 » sans guillemets : PowerShell transmet « 3,5 » comme un tableau.
 $parts = @()
 foreach ($item in @($Expression)) {
     if ($null -eq $item) { continue }
@@ -32,23 +32,23 @@ foreach ($item in @($Expression)) {
 }
 
 if ($Help -or (Test-PstHelpArg $parts)) {
-    Show-PstHelp -Name 'calc' -Synopsis (L 'Calculatrice, pourcentages, conversions d''unités et de devises.') `
+    Show-PstHelp -Name 'math' -Synopsis (L 'Calculatrice, pourcentages, conversions d''unités et de devises.') `
         -Usage @(
-            (L 'calc "<expression>" [-Copy] [-Json]'),
-            (L 'calc                         mode interactif (« ans » = dernier résultat)')
+            (L 'math "<expression>" [-Copy] [-Json]'),
+            (L 'math                         mode interactif (« ans » = dernier résultat)')
         ) `
         -Options @(
             @('-Copy', (L 'Copie le résultat dans le presse-papiers')),
             @('-Json', (L 'Sortie JSON, pour les scripts'))
         ) `
         -Examples @(
-            (L 'calc "3,5 * 2 + sqrt(16)"'),
-            (L 'calc "15% de 80"'),
-            'calc "80 + 20%"',
-            (L 'calc 10 km en mi'),
-            (L 'calc 20 °C en °F'),
-            (L 'calc 1,5 Go en Mo'),
-            (L 'calc 100 EUR en USD')
+            (L 'math "3,5 * 2 + sqrt(16)"'),
+            (L 'math "15% de 80"'),
+            'math "80 + 20%"',
+            (L 'math 10 km en mi'),
+            (L 'math 20 °C en °F'),
+            (L 'math 1,5 Go en Mo'),
+            (L 'math 100 EUR en USD')
         ) `
         -Notes @(
             (L 'Opérateurs : + - * / ^ % ( ) ; fonctions : sqrt, abs, round, floor, ceil, min, max, ln, log, exp.'),
@@ -558,7 +558,7 @@ function ConvertFrom-FallbackJson {
 function Get-Rates {
     # Taux (base EUR) : cache du jour, sinon réseau, sinon derniers taux connus.
     param([string[]]$Codes)
-    $file = Join-Path (Get-PstDataDir) 'calc-rates.json'
+    $file = Join-Path (Get-PstDataDir) 'math-rates.json'
     $cache = Read-PstJsonFile $file
     $today = (Get-Date).ToString('yyyy-MM-dd')
     $hasAll = {
@@ -683,7 +683,7 @@ if ($parts.Count -eq 0) {
     if ($piped.Count -gt 0 -or -not (Test-PstInteractive)) {
         $lines = $piped
         if ($lines.Count -eq 0) {
-            Write-PstStatus err (L 'Aucune expression. Exemple : calc "2 + 2" (calc -Help pour l''aide).')
+            Write-PstStatus err (L 'Aucune expression. Exemple : math "2 + 2" (math -Help pour l''aide).')
             exit 1
         }
         $failed = $false
@@ -696,11 +696,11 @@ if ($parts.Count -eq 0) {
         if ($failed) { exit 1 }
         exit 0
     }
-    Show-PstHeader -Tool 'calc' -Subtitle (L 'mode interactif')
+    Show-PstHeader -Tool 'math' -Subtitle (L 'mode interactif')
     Write-Host ('  ' + (Paint (L 'Un calcul par ligne ; « ans » reprend le dernier résultat. Ligne vide ou « q » pour quitter.') 'Dim'))
     Write-Host ''
     while ($true) {
-        $line = Read-Host ('  ' + (Paint 'calc' 'Accent' -Bold))
+        $line = Read-Host ('  ' + (Paint 'math' 'Accent' -Bold))
         if ($null -eq $line -or -not $line.Trim() -or $line.Trim() -in 'q', 'quit', 'exit', 'quitter', 'sortir') { break }
         try {
             $r = Invoke-Calc $line

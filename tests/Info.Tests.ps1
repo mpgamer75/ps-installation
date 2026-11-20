@@ -1,4 +1,4 @@
-﻿# Tests Pester (v5+) des outils weather, calc et speed — sans réseau.
+﻿# Tests Pester (v5+) des outils weather, math et speed — sans réseau.
 #   Invoke-Pester ./tests/Info.Tests.ps1
 # Les réponses des services sont simulées : fichiers JSON enregistrés (PSTOOLS_WEATHER_URL,
 # PSTOOLS_CALC_RATES_URL), « offline », ou mesures factices (PSTOOLS_SPEED_FAKE).
@@ -23,9 +23,9 @@ BeforeAll {
     }
 
     function Invoke-Calc {
-        # Résultat numérique de calc -Json.
+        # Résultat numérique de math -Json.
         param([string]$Expression)
-        $r = Invoke-Tool 'calc' @($Expression, '-Json')
+        $r = Invoke-Tool 'math' @($Expression, '-Json')
         $r.ExitCode | Should -Be 0 -Because "$Expression : $($r.Output)"
         return ($r.Output | ConvertFrom-Json)
     }
@@ -63,8 +63,8 @@ AfterAll {
     Remove-Item Env:PSTOOLS_DATA, Env:PSTOOLS_WEATHER_URL, Env:PSTOOLS_CALC_RATES_URL, Env:PSTOOLS_CALC_FALLBACK_URL, Env:PSTOOLS_SPEED_FAKE, Env:PSTOOLS_SPEED_URL -ErrorAction SilentlyContinue
 }
 
-Describe 'Aide des outils weather, calc et speed' {
-    It '<_> -Help répond en français puis en anglais' -ForEach @('weather', 'calc', 'speed') {
+Describe 'Aide des outils weather, math et speed' {
+    It '<_> -Help répond en français puis en anglais' -ForEach @('weather', 'math', 'speed') {
         $r = Invoke-Tool $_ @('-Help')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match 'UTILISATION'
@@ -76,7 +76,7 @@ Describe 'Aide des outils weather, calc et speed' {
     }
 }
 
-Describe 'calc' {
+Describe 'math' {
     It 'calcule avec priorités, puissances et parenthèses' {
         (Invoke-Calc '2 + 3 * 4^2').Value | Should -Be 50
         (Invoke-Calc '-2^2').Value | Should -Be -4
@@ -110,7 +110,7 @@ Describe 'calc' {
     }
 
     It 'affiche le résultat dans la culture française' {
-        $r = Invoke-Tool 'calc' @('3,5 * 3')
+        $r = Invoke-Tool 'math' @('3,5 * 3')
         $r.ExitCode | Should -Be 0
         $r.Output | Should -Match '3,5 \* 3\s+=\s+10,5'
     }
@@ -118,7 +118,7 @@ Describe 'calc' {
     It 'signale clairement les erreurs' {
         $cases = @{ '1/0' = 'Division par zéro'; '2 +' = 'incomplète'; '(1+2' = 'Parenthèse fermante manquante'; '1+2)' = 'en trop'; 'foo(2)' = 'inconnu'; 'sqrt(-1)' = 'négatif' }
         foreach ($k in $cases.Keys) {
-            $r = Invoke-Tool 'calc' @($k)
+            $r = Invoke-Tool 'math' @($k)
             $r.ExitCode | Should -Be 1 -Because $k
             $r.Output | Should -Match $cases[$k] -Because $k
         }
@@ -128,7 +128,7 @@ Describe 'calc' {
         $victim = Join-Path $script:Fixtures 'victim.txt'
         Set-Content -Path $victim -Value 'x'
         foreach ($expr in @("1; Remove-Item '$victim'", "`$(Remove-Item '$victim')", 'Get-Date', '[Environment]::Exit(0)', "1 + `$env:PATH")) {
-            $r = Invoke-Tool 'calc' @($expr)
+            $r = Invoke-Tool 'math' @($expr)
             $r.ExitCode | Should -Be 1 -Because $expr
         }
         $victim | Should -Exist
@@ -149,7 +149,7 @@ Describe 'calc' {
     }
 
     It 'refuse les unités incompatibles' {
-        $r = Invoke-Tool 'calc' @('10 km en kg')
+        $r = Invoke-Tool 'math' @('10 km en kg')
         $r.ExitCode | Should -Be 1
         $r.Output | Should -Match 'incompatibles'
     }
@@ -164,26 +164,26 @@ Describe 'calc' {
             (Invoke-Calc '110 $ en €').Value | Should -Be 100
             (Invoke-Calc '80 GBP en USD').Value | Should -Be 110
             (Invoke-Calc '1 BTC en EUR').Value | Should -Be 50000   # absent de Frankfurter : source de repli
-            $out = Invoke-Tool 'calc' @('100 EUR en USD')
+            $out = Invoke-Tool 'math' @('100 EUR en USD')
             $out.Output | Should -Match '110,00 USD'
             $out.Output | Should -Match 'taux du 19 novembre 2026'
         }
         finally { Remove-Item Env:PSTOOLS_CALC_RATES_URL, Env:PSTOOLS_CALC_FALLBACK_URL -ErrorAction SilentlyContinue }
-        Join-Path $env:PSTOOLS_DATA 'calc-rates.json' | Should -Exist
+        Join-Path $env:PSTOOLS_DATA 'math-rates.json' | Should -Exist
     }
 
     It 'utilise les derniers taux connus hors ligne et le dit' {
-        $cache = Join-Path $env:PSTOOLS_DATA 'calc-rates.json'
+        $cache = Join-Path $env:PSTOOLS_DATA 'math-rates.json'
         [IO.File]::WriteAllText($cache, '{ "fetched": "2020-01-01", "date": "2020-01-01", "source": "frankfurter", "rates": { "EUR": 1, "USD": 2 } }')
         $env:PSTOOLS_CALC_RATES_URL = 'offline'; $env:PSTOOLS_CALC_FALLBACK_URL = 'offline'
         try {
-            $r = Invoke-Tool 'calc' @('10 EUR en USD')
+            $r = Invoke-Tool 'math' @('10 EUR en USD')
             $r.ExitCode | Should -Be 0
             $r.Output | Should -Match '20,00 USD'
             $r.Output | Should -Match 'Hors ligne'
             (Invoke-Calc '10 EUR en USD').Stale | Should -BeTrue
             Remove-Item $cache
-            $none = Invoke-Tool 'calc' @('10 EUR en USD')
+            $none = Invoke-Tool 'math' @('10 EUR en USD')
             $none.ExitCode | Should -Be 1
             $none.Output | Should -Match 'indisponibles'
         }
@@ -191,14 +191,14 @@ Describe 'calc' {
     }
 
     It 'évalue chaque ligne reçue par le pipeline' {
-        $file = Join-Path $script:Tools 'calc.ps1'
+        $file = Join-Path $script:Tools 'math.ps1'
         $out = @("2 + 2", "10 km en m") | & $script:Shell -NoProfile -File $file 2>&1
         ($out -join "`n") | Should -Match '=\s+4'
         ($out -join "`n") | Should -Match '10\s?000 m'
     }
 
     It 'sans expression ni entrée, renvoie une erreur sans attendre' {
-        $r = Invoke-Tool 'calc'
+        $r = Invoke-Tool 'math'
         $r.ExitCode | Should -Be 1
         $r.Output | Should -Match 'Aucune expression'
     }
@@ -206,9 +206,9 @@ Describe 'calc' {
     It 'parle anglais et accepte la virgule des milliers en anglais' {
         $env:PSTOOLS_LANG = 'en'
         try {
-            $r = Invoke-Tool 'calc' @('1,000 + 0.5')
-            $err = Invoke-Tool 'calc' @('1/0')
-            $args2 = Invoke-Tool 'calc' @('max(3.5, 2)', '-Json')
+            $r = Invoke-Tool 'math' @('1,000 + 0.5')
+            $err = Invoke-Tool 'math' @('1/0')
+            $args2 = Invoke-Tool 'math' @('max(3.5, 2)', '-Json')
         }
         finally { $env:PSTOOLS_LANG = 'fr' }
         $r.Output | Should -Match '1,000\.5'
