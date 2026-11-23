@@ -1,0 +1,45 @@
+name: Release
+
+# Pousser un tag vX.Y.Z publie la release GitHub correspondante :
+# notes tirées de CHANGELOG.md, archive des sources jointe.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Vérifier la version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = (Get-Content manifest.json -Raw | ConvertFrom-Json).version
+          if ($tag -ne "v$version") { throw "Le tag $tag ne correspond pas à manifest.json ($version)" }
+          "VERSION=$version" | Out-File -Append -FilePath $env:GITHUB_ENV
+      - name: Notes de version
+        shell: pwsh
+        run: |
+          $lines = Get-Content CHANGELOG.md -Encoding UTF8
+          $start = [array]::IndexOf($lines, "## $env:VERSION")
+          if ($start -lt 0) { throw "Section ## $env:VERSION absente de CHANGELOG.md" }
+          $body = foreach ($l in $lines[($start + 1)..($lines.Count - 1)]) { if ($l -match '^## ') { break }; $l }
+          $install = @(
+            '', '### Installation / Install', '',
+            '```powershell',
+            'irm https://raw.githubusercontent.com/mpgamer75/ps-installation/main/install.ps1 | iex',
+            '```',
+            'Mise à jour / Update : `pst update`'
+          )
+          ($body + $install) -join "`n" | Set-Content notes.md -Encoding UTF8
+      - name: Publier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git archive --format=zip --prefix="ps-tools-$VERSION/" -o "ps-tools-$VERSION.zip" HEAD
+          gh release create "${{ github.ref_name }}" "ps-tools-$VERSION.zip" \
+            --title "ps-tools $VERSION" --notes-file notes.md --verify-tag
